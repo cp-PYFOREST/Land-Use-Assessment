@@ -1,0 +1,132 @@
+# Input Data
+
+```{r}
+#| echo: false
+library(sf)
+library(tmap)
+library(tidyverse)
+library(here)
+library(units)
+library(knitr)
+```
+
+```{r}
+source(knitr::purl("~/meds/capstone/R/separate_functions.qmd") )
+```
+
+```{r}
+
+limit_lu <- st_read(here('sample', 'limite_put_3ej.shp')) %>% 
+  st_make_valid()|> 
+  st_transform("EPSG:32721")
+
+riverline <- st_read(here('sample', 'river_05242.shp')) %>% 
+  st_make_valid() |> 
+  st_transform("EPSG:32721")
+```
+
+# Select Property
+
+```{r}
+property_boundary <- select_property(02094)
+```
+
+# Input of Paddock and Hedgerow Dimensions
+
+```{r}
+pad_hedg_dim <- property_dimensions(width_paddock = 3,
+                        height_paddock = 1)
+```
+
+# Create Grid & Rotate
+
+```{r}
+grid <- grid_rotate()
+```
+
+```{r}
+plot(grid)
+st_area(grid)
+```
+
+
+```{r}
+add_df_test <- st_as_sf(grid)
+
+add_order <- add_df_test |> 
+  mutate(cell_area = st_area(add_df_test),
+         order = seq(1:nrow(add_df_test)))
+
+
+tm_shape(add_order) +
+  tm_sf(col = 'cell_area')
+```
+
+```{r}
+test23 <- property_boundary |> mutate(test = 0, .before = ha_palmar)
+class(test23)
+```
+
+```{r}
+threshold <- set_units((max(st_area(add_order))), m^2)
+```
+
+```{r}
+forest_reserve <- add_order |> 
+  st_filter(cell_area < set_units((max(st_area(add_order))), m^2))
+plot(forest_reserve)
+```
+
+
+# riparian
+
+```{r}
+# Working on in scratch, commeted to for source 
+#
+# if(lengths(st_crosses(property_boundary, riverline)) > 0){
+#   riparian <- st_buffer(riverline, dist = 100, endCapStyle = 'FLAT')
+#   
+#   rip_clip <- st_intersects(test_rot, riparian)
+#   sel_logical <- lengths(rip_clip) > 0
+#   cell_river <- test_rot[sel_logical == TRUE]
+#   
+#   forest_reserve  <- st_difference(cell_river, riparian)
+#   forest_reserve_per <- (sum(st_area(first_reserve)) / st_area(property_boundary)) * 100
+#   
+#   
+#   remainder <- test_rot[sel_logical == FALSE]
+#   #tang <- st_area(wu)
+#   }
+# if(forest_reserve_per < 24.9 | forest_reserve_per <= 26.0){
+#   # Find cells in wu that touch first_reserve
+# touching_cells <- st_touches(wu, first_reserve)
+# 
+# # Sort the touching cells by area
+# touching_cells_sorted <- touching_cells[order(st_area(touching_cells)),]
+# 
+# # Add the touching cells to first_reserve one by one
+# for (i in 1:nrow(touching_cells_sorted)) {
+#   first_reserve <- st_union(first_reserve, touching_cells_sorted[i,])
+# }
+# 
+#   
+# }
+# 
+# 
+# 
+# 
+# 
+# 
+# }else{
+#   return()
+#   }
+# 
+# 
+# 
+# 
+# 
+
+
+```
+
+(sum(st_area(first_reserve)) / st_area(property_boundary)) \* 100
