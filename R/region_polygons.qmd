@@ -1,0 +1,110 @@
+---
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+
+# Libraries
+
+```{r}
+#| include: false
+library(sf)
+library(tmap)
+library(tidyverse)
+library(here)
+library(units)
+library(knitr)
+```
+
+```{r}
+#https://gis.stackexchange.com/questions/375345/dividing-polygon-into-parts-which-have-equal-area-using-r
+
+
+
+# library(mapview)
+# library(dismo)
+# library(osmdata)  
+# library(mapview)
+# split_poly <- function(sf_poly, n_areas){
+# # create random points
+# points_rnd <- st_sample(sf_poly, size = 10000)
+# #k-means clustering
+# points <- do.call(rbind, st_geometry(points_rnd)) %>%
+#   as_tibble() %>% setNames(c("lon","lat"))
+# k_means <- kmeans(points, centers = n_areas)
+# # create voronoi polygons
+# voronoi_polys <- dismo::voronoi(k_means$centers, ext = sf_poly)
+# # clip to sf_poly
+# crs(voronoi_polys) <- crs(sf_poly)
+# voronoi_sf <- st_as_sf(voronoi_polys)
+# equal_areas <- st_intersection(voronoi_sf, sf_poly)
+# equal_areas$area <- st_area(equal_areas)
+# return(equal_areas)
+# }
+```
+
+```{r}
+# This is a script that approximates the fractions, it has a great field for optimization. It only does horizontal cutting, not in an oriented bounding box. In the porcientos argument you may put as many values as you like, it is not only for halves (c(.5,.5), this means c(.4, .3, .2, .1) would be a valid vector as well.
+
+library(units)
+library(sf)
+library(dplyr)
+library(osmdata)
+
+pol <- osmdata::getbb("aguascalientes", format_out = "sf_polygon") 
+porcientos <- c(.5,.5) # the half argument
+
+polycent <- function(poly, porcientos) {
+  df   <- st_sf(id = 1:length(porcientos), crs = 4326, # empty sf for populating
+                geometry = st_sfc(lapply(1:length(porcientos), function(x) st_multipolygon())))
+  area1 <- st_area(poly) %>% sum() # st_area takes multipolygons as one; # area1 is constant
+  poly2 <- poly # duplicating for the final cut
+  for(j in  seq_along(porcientos[-length(porcientos)])) { 
+    bb = st_bbox(poly2)
+    top <- bb['ymax']
+    bot <- bb['ymin']
+    steps <- seq(bot, top, by = (top - bot) / 80)
+    for(i in steps[2:length(steps)]) {  # 2:n because 1:n renders a line "ymax" = "ymin"
+      bf <- bb
+      bf['ymax'] = i
+      temp <- st_intersection(poly, st_as_sfc(bf, 4326))
+      area2 <- st_area(temp) %>% sum()           # con get(.., i) coz st_area prints rounded
+      if(drop_units(area2)/drop_units(area1) >= porcientos[j]) break
+      df$geometry[j] <- st_geometry(temp)
+    }
+    poly2 <- st_difference(poly2, st_union(df))
+  }
+  df$geometry[length(porcientos)] <- st_geometry(st_difference(poly, st_union(df)))
+  poly <- df
+}
+```
+
+# Test for undeveloped region polygons with st_make_grid
+
+```{r}
+
+# Create a dataset of sfc cells using st_make_grid
+bbox <- st_bbox(c(0, 0, 10, 10))
+grid_size <- c(2, 2)
+grid <- st_make_grid(bbox, cellsize = c(diff(bbox[c(1, 3)]) / grid_size[1],
+                                         diff(bbox[c(2, 4)]) / grid_size[2]))
+
+```
+
+# Source Functions
+
+```{r}
+#| include: false
+source(knitr::purl(here("R", "scratch_function.qmd")))
+```
+
+Variables to call with: property_select(): property_cat
+
+property_dimension(): paddock_area = 999000, hedgerow_width = 50,
+width_paddock = 1, height_paddock = 1, tol = 0.01, new_dim = NULL,
+max_iter = 100
+
+```{r}
+
+```
