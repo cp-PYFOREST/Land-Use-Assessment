@@ -7,6 +7,7 @@ library(tidyverse)
 library(here)
 library(units)
 library(knitr)
+library(flextable)
 ```
 
 # Source Data
@@ -21,7 +22,7 @@ source(knitr::purl(here("R", "load_data.qmd")))
 
 ```{r}
 #| include: false
-source(knitr::purl(here("R", "separate_functions.qmd")))
+source(knitr::purl(here("R", "functions.qmd")))
 ```
 
 # Collect Stats
@@ -52,14 +53,20 @@ for (i in seq_along(limit_lu$cat)) {
   riparian_corridor <- riparian_buffer()
   
   # Input of Paddock and Hedgerow Dimensions
+  # pad_hedg_dim <- property_dimensions(
+  #   paddock_area = 999000,
+  #   hedgerow_width = 50,
+  #   width_paddock = paddock_dims$width_paddock[j],
+  #   height_paddock = paddock_dims$height_paddock[j],
+  #   tol = 0.005,
+  #   new_dim = NULL,
+  #   max_iter = 500)
+  
   pad_hedg_dim <- property_dimensions(
-    paddock_area = 999000,
-    hedgerow_width = 50,
+    desired_area = 999999,
+    hedgerow_width = 100,
     width_paddock = paddock_dims$width_paddock[j],
-    height_paddock = paddock_dims$height_paddock[j],
-    tol = 0.01,
-    new_dim = NULL,
-    max_iter = 500)
+    height_paddock = paddock_dims$height_paddock[j])
   
   # Create Grid , Rotate, Cut With Property
   property_grid <- grid_rotate()
@@ -75,7 +82,6 @@ for (i in seq_along(limit_lu$cat)) {
 
   # Hedgerows
   #Check for errors
-print('h')
   hedgerows <- tryCatch({
     make_hedges()
     },
@@ -88,6 +94,7 @@ print('h')
     # Final Areas
   statistics <- tibble(
     id = property_boundary$cat,
+    ratio_xy = paste(w,'/',h),
     property_area = st_area(property_boundary) |> drop_units(),
     property_units = 'm^2',
     
@@ -102,8 +109,10 @@ print('h')
     
     hedgerow_area = NA,
     hedgerow_per = NA,
-    ratio_x = w,
-    ratio_y = h)
+    
+    corridor_area = NA,
+    corridor_per = NA
+    )
 
   
     
@@ -135,7 +144,6 @@ print('h')
     hedges <- st_difference(hedgerows, hedge)
     }
   
-print('p')  
   # Paddocks
   paddocks <- tryCatch(
     make_paddocks(),
@@ -148,6 +156,7 @@ print('p')
     # Final Areas
   statistics <- tibble(
     id = property_boundary$cat,
+    ratio_xy = paste(w,'/',h),
     property_area = st_area(property_boundary) |> drop_units(),
     property_units = 'm^2',
     
@@ -162,8 +171,12 @@ print('p')
     
     hedgerow_area = NA,
     hedgerow_per = NA,
-    ratio_x = w,
-    ratio_y = h)
+
+    
+    corridor_area = NA,
+    corridor_per = NA
+    
+    )
 
   
     
@@ -210,6 +223,7 @@ print('p')
   # Final Areas
   statistics <- tibble(
     id = property_boundary$cat,
+    ratio_xy = paste(w,'/',h),
     property_area = st_area(property_boundary) |> drop_units(),
     property_units = 'm^2',
     
@@ -219,18 +233,22 @@ print('p')
     fr_per = round((st_area(forest_reserve) / st_area(property_boundary)) * 100,2) |> drop_units() ,
     
     
-    paddocks_area = ifelse(!is.null(paddocks[1]), round(sum(st_area(paddocks)) / st_area(property_boundary),2),NA),
+    paddocks_area = ifelse(!is.null(paddocks[1]), 
+                           sum(st_area(paddocks)), 
+                           NA),
     paddocks_units = 'm^2',
-    paddocks_per = ifelse(!is.null(paddocks[1]),round(sum(st_area(paddocks)) / st_area(property_boundary),2),NA),
-    
+    paddocks_per = ifelse(!is.null(paddocks[1]),round(sum(st_area(paddocks)) / st_area(property_boundary)* 100,2),NA),
+
     
     
     hedgerow_area = ifelse(is.null(final_hedgerow), NA, st_area(final_hedgerow)),
     hedgerow_per = round((st_area(final_hedgerow) / st_area(property_boundary)) * 100,2) |> drop_units(),
     
+    corridor_area = riparian_area,
+    corridor_per = riparian_area_per
     
-    ratio_x = w,
-    ratio_y = h)
+    #areas_pads = ifelse(!is.null(paddocks[1]),tibble(st_area(paddocks)),NA)
+    )
 
   
     
@@ -252,15 +270,33 @@ print('p')
 }
 
 # save the final dataframe
-saveRDS(results_df, "results.rds")})
+#saveRDS(results_df, "results.rds")
+})
 ```
 
-Runtime performance: You can use the system.time() function to measure the execution time of your code. For example, you can wrap your code in system.time({ ... }) to get the execution time of the entire block of code. This will print the elapsed time, the CPU time used by the system, and the CPU time used by the user. You can also use the microbenchmark package to get more precise measurements of the execution time.
+```{r}
 
-Memory usage: You can use the profvis package to profile your code and visualize the memory usage of each function. This can help you identify which functions are using the most memory and optimize your code accordingly.
+results_df <- readRDS(results_df, 'results2.rds')
+```
 
-Code quality: You can use tools like lintr to check for coding standards and potential errors in your code. This can help you write more maintainable and error-free code.
 
-Functional correctness: You can use unit tests to ensure that your code is working correctly. You can write unit tests using packages like testthat and assertthat. Unit tests help ensure that your code is working as expected and that any changes you make to your code don't introduce new bugs.
+```{r}
+percentages <- results_df |>
+  select(-error_paddocks, -error_hedgerow, -corridor_area, -property_area, -property_units, -fr_area, -paddocks_area, -paddocks_units, - hedgerow_area, -fr_units) |>
+  drop_units() |> 
+  replace_na(replace = list(corridor_per = 0)) |> mutate(sum_percentage = fr_per + paddocks_per + hedgerow_per + corridor_per)
+flextable(percentages)
+```
 
-Scalability: If your code needs to handle larger datasets or more complex computations, you may need to optimize it for scalability. This could involve using parallelization, optimizing algorithms, or using more efficient data structures.
+```{r}
+
+read_rds('areas_pads_999999.rds')
+read_rds('areas_pads_999.rds')
+read_rds('areas_pads_tol005.rds')
+paddocks_list <- read_rds('paddocks_df.rds')
+
+#areas_pads
+paddocks_list$paddocks_list
+#saveRDS(areas_pads_999999,"areas_pads_999999.rds")
+```
+

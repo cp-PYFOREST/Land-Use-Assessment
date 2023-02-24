@@ -30,91 +30,91 @@ select_property <- function(property_cat) {
 # Input of Paddock and Hedgerow Dimensions
 
 ```{r}
-property_dimensions <- function(paddock_area = 999000,
-                                 hedgerow_width = 50,
-                                 width_paddock = 1,
-                                 height_paddock = 1,
-                                 tol = 0.01,
-                                 new_dim = NULL,
-                                 max_iter = 100) {
-  # Dimensions
-  max_pad <- paddock_area
-  max_hedgerow <- hedgerow_width
-  pad_hedge <- max_pad + max_hedgerow
-
-  # Aspect Ratio (from square to rectangle)
-  ratio_x <- c(1, 2, 3, 4)
-  ratio_y <- c(1, 2, 3, 4)
-  aspect_ratio <- width_paddock / height_paddock
-
-  if (width_paddock %in% ratio_x & height_paddock %in% ratio_y) {
-    if (!is.null(new_dim)) {
-      # User-specified cell size
-      x <- new_dim[1]
-      y <- new_dim[2]
-    } else {
-      # Initial cell size based on aspect ratio and total area
-      y <- sqrt(pad_hedge / (ratio_x[width_paddock] / ratio_y[height_paddock]))
-      x <- sqrt(pad_hedge * (ratio_x[width_paddock] / ratio_y[height_paddock]))
-    }
-
-    # Initialize variables for iteration
-    x_y <- tibble(x, y)
-    iter <- 1
-    error <- Inf
-
-    while (error > tol & iter <= max_iter) {
-      # Generate the grid and buffer
-      fc <- st_sfc(st_polygon(list(rbind(c(0,0), c(1,0), c(1,1), c(0,1),c(0,0))))) |> st_set_crs('EPSG:32721')
-      mini_grid <- st_make_grid(fc, cellsize = c(x, y), n = c(1, 2)) |> st_cast(to = 'MULTILINESTRING')
-      mini_buff <- st_buffer(mini_grid, dist = 50, singleSide = TRUE) |> st_as_sf() |> st_union()
-
-      # Generate the paddock and calculate its area
-      mini_regrid <- st_make_grid(fc, cellsize = c(x_y[[1]], x_y[[2]]), n = c(1, 1))
-      mini_pad <- st_difference(mini_regrid, mini_buff)
-      area_pad <- st_area(mini_pad) |> drop_units()
-
-      # Calculate the error and update the cell size
-      error <- abs(area_pad - paddock_area)
-      if (area_pad < paddock_area) {
-        # Increase the cell size
-        factor <- (paddock_area - area_pad) / area_pad
-        y_new <- y * sqrt(1 + factor / aspect_ratio)
-        x_new <- x * sqrt(1 + factor * aspect_ratio)
-      } else {
-        # Decrease the cell size
-        factor <- (area_pad - paddock_area) / area_pad
-        y_new <- y / sqrt(1 + factor / aspect_ratio)
-        x_new <- x / sqrt(1 + factor * aspect_ratio)
-      }
-
-      # Update the cell size and the iteration counter
-      x_y <- tibble(x_new, y_new)
-      x <- x_new
-      y <- y_new
-      iter <- iter + 1
-    }
-
-    if (iter > max_iter) {
-      warning("Maximum number of iterations reached without convergence")
-    }
-
-    # Return the final cell size and the paddock area
-  result <- list(dimensions = x_y, area = area_pad)
-
-  if (!is.null(new_dim)) {
-    # If new_dim argument is provided, update the dimensions
-    result$dimensions <- new_dim
-  } else if (!is.null(tol)) {
-    # If tol argument is provided, update the cell size
-    dim_new <- result$dimensions * (1 + tol)
-    result$dimensions <- dim_new
-  }
-
-  }
-    return(as.data.frame(result))
-
-}
+# property_dimensions <- function(paddock_area = 999000,
+#                                  hedgerow_width = 50,
+#                                  width_paddock = 1,
+#                                  height_paddock = 1,
+#                                  tol = 0.01,
+#                                  new_dim = NULL,
+#                                  max_iter = 100) {
+#   # Dimensions
+#   max_pad <- paddock_area
+#   max_hedgerow <- hedgerow_width
+#   pad_hedge <- max_pad + max_hedgerow
+# 
+#   # Aspect Ratio (from square to rectangle)
+#   ratio_x <- c(1, 2, 3, 4)
+#   ratio_y <- c(1, 2, 3, 4)
+#   aspect_ratio <- width_paddock / height_paddock
+# 
+#   if (width_paddock %in% ratio_x & height_paddock %in% ratio_y) {
+#     if (!is.null(new_dim)) {
+#       # User-specified cell size
+#       x <- new_dim[1]
+#       y <- new_dim[2]
+#     } else {
+#       # Initial cell size based on aspect ratio and total area
+#       y <- sqrt(pad_hedge / (ratio_x[width_paddock] / ratio_y[height_paddock]))
+#       x <- sqrt(pad_hedge * (ratio_x[width_paddock] / ratio_y[height_paddock]))
+#     }
+# 
+#     # Initialize variables for iteration
+#     x_y <- tibble(x, y)
+#     iter <- 1
+#     error <- Inf
+# 
+#     while (error > tol & iter <= max_iter) {
+#       # Generate the grid and buffer
+#       fc <- st_sfc(st_polygon(list(rbind(c(0,0), c(1,0), c(1,1), c(0,1),c(0,0))))) |> st_set_crs('EPSG:32721')
+#       mini_grid <- st_make_grid(fc, cellsize = c(x, y), n = c(1, 2)) |> st_cast(to = 'MULTILINESTRING')
+#       mini_buff <- st_buffer(mini_grid, dist = 50, singleSide = TRUE) |> st_as_sf() |> st_union()
+# 
+#       # Generate the paddock and calculate its area
+#       mini_regrid <- st_make_grid(fc, cellsize = c(x_y[[1]], x_y[[2]]), n = c(1, 1))
+#       mini_pad <- st_difference(mini_regrid, mini_buff)
+#       area_pad <- st_area(mini_pad) |> drop_units()
+# 
+#       # Calculate the error and update the cell size
+#       error <- abs(area_pad - paddock_area)
+#       if (area_pad < paddock_area) {
+#         # Increase the cell size
+#         factor <- (paddock_area - area_pad) / area_pad
+#         y_new <- y * sqrt(1 + factor / aspect_ratio)
+#         x_new <- x * sqrt(1 + factor * aspect_ratio)
+#       } else {
+#         # Decrease the cell size
+#         factor <- (area_pad - paddock_area) / area_pad
+#         y_new <- y / sqrt(1 + factor / aspect_ratio)
+#         x_new <- x / sqrt(1 + factor * aspect_ratio)
+#       }
+# 
+#       # Update the cell size and the iteration counter
+#       x_y <- tibble(x_new, y_new)
+#       x <- x_new
+#       y <- y_new
+#       iter <- iter + 1
+#     }
+# 
+#     if (iter > max_iter) {
+#       warning("Maximum number of iterations reached without convergence")
+#     }
+# 
+#     # Return the final cell size and the paddock area
+#   result <- list(dimensions = x_y, area = area_pad)
+# 
+#   if (!is.null(new_dim)) {
+#     # If new_dim argument is provided, update the dimensions
+#     result$dimensions <- new_dim
+#   } else if (!is.null(tol)) {
+#     # If tol argument is provided, update the cell size
+#     dim_new <- result$dimensions * (1 + tol)
+#     result$dimensions <- dim_new
+#   }
+# 
+#   }
+#     return(as.data.frame(result))
+# 
+# }
 
 ```
 
@@ -199,34 +199,33 @@ property_dimensions <- function(paddock_area = 999000,
 #1222999.9
 
 # 
-# property_dimensions <- function(paddock_area = 1222580.005 ,
-#                         hedgerow_width = 100,
-#                         width_paddock = 1,
-#                         height_paddock = 1) {
-#     width_paddock <- as.integer(width_paddock)
-#     height_paddock <- as.integer(height_paddock)
-#   #Dimensions
-#   max_pad <- paddock_area
-#   max_hedgerow <- hedgerow_width
-#   pad_hedge <- max_pad + max_hedgerow/2
-#   
-#   # Aspect Ratio (from square to rectangle)
-#   ratio_x <- c(1,2,3,4)
-#   ratio_y <- c(1,2,3,4)
-#   
-#   if(width_paddock %in% ratio_x & height_paddock %in% ratio_y){
-#   y <- sqrt(pad_hedge / (ratio_x[width_paddock]/ratio_y[height_paddock]))
-#   
-#   x <- sqrt(pad_hedge * (ratio_x[width_paddock]/ratio_y[height_paddock]))
-#   
-#   x_y <- tibble(x, y)
-#   
-#   return(x_y)
-#   }else{
-#     print('INVALID RATIO OF WIDTH TO HEIGHT')
-#   }
-# 
-# }
+property_dimensions <- function(desired_area = 999000 ,
+                        hedgerow_width = 100,
+                        width_paddock = 1,
+                        height_paddock = 1) {
+    width_paddock <- as.integer(width_paddock)
+    height_paddock <- as.integer(height_paddock)
+  #Dimensions
+
+ 
+
+  # Aspect Ratio (from square to rectangle)
+  ratio_x <- c(1,2,3,4)
+  ratio_y <- c(1,2,3,4)
+
+  if(width_paddock %in% ratio_x & height_paddock %in% ratio_y){
+  y <- sqrt(desired_area / (ratio_x[width_paddock]/ratio_y[height_paddock])) + (hedgerow_width)
+
+  x <- sqrt(desired_area * (ratio_x[width_paddock]/ratio_y[height_paddock])) + (hedgerow_width)
+
+  x_y <- tibble(x, y)
+
+  return(x_y)
+  }else{
+    print('INVALID RATIO OF WIDTH TO HEIGHT')
+  }
+
+}
 
 ```
 

@@ -47,37 +47,37 @@ library(knitr)
 ```{r}
 # This is a script that approximates the fractions, it has a great field for optimization. It only does horizontal cutting, not in an oriented bounding box. In the porcientos argument you may put as many values as you like, it is not only for halves (c(.5,.5), this means c(.4, .3, .2, .1) would be a valid vector as well.
 
-library(units)
-library(sf)
-library(dplyr)
-library(osmdata)
-
-pol <- osmdata::getbb("aguascalientes", format_out = "sf_polygon") 
-porcientos <- c(.5,.5) # the half argument
-
-polycent <- function(poly, porcientos) {
-  df   <- st_sf(id = 1:length(porcientos), crs = 4326, # empty sf for populating
-                geometry = st_sfc(lapply(1:length(porcientos), function(x) st_multipolygon())))
-  area1 <- st_area(poly) %>% sum() # st_area takes multipolygons as one; # area1 is constant
-  poly2 <- poly # duplicating for the final cut
-  for(j in  seq_along(porcientos[-length(porcientos)])) { 
-    bb = st_bbox(poly2)
-    top <- bb['ymax']
-    bot <- bb['ymin']
-    steps <- seq(bot, top, by = (top - bot) / 80)
-    for(i in steps[2:length(steps)]) {  # 2:n because 1:n renders a line "ymax" = "ymin"
-      bf <- bb
-      bf['ymax'] = i
-      temp <- st_intersection(poly, st_as_sfc(bf, 4326))
-      area2 <- st_area(temp) %>% sum()           # con get(.., i) coz st_area prints rounded
-      if(drop_units(area2)/drop_units(area1) >= porcientos[j]) break
-      df$geometry[j] <- st_geometry(temp)
-    }
-    poly2 <- st_difference(poly2, st_union(df))
-  }
-  df$geometry[length(porcientos)] <- st_geometry(st_difference(poly, st_union(df)))
-  poly <- df
-}
+# library(units)
+# library(sf)
+# library(dplyr)
+# library(osmdata)
+# 
+# pol <- osmdata::getbb("aguascalientes", format_out = "sf_polygon") 
+# porcientos <- c(.5,.5) # the half argument
+# 
+# polycent <- function(poly, porcientos) {
+#   df   <- st_sf(id = 1:length(porcientos), crs = 4326, # empty sf for populating
+#                 geometry = st_sfc(lapply(1:length(porcientos), function(x) st_multipolygon())))
+#   area1 <- st_area(poly) %>% sum() # st_area takes multipolygons as one; # area1 is constant
+#   poly2 <- poly # duplicating for the final cut
+#   for(j in  seq_along(porcientos[-length(porcientos)])) { 
+#     bb = st_bbox(poly2)
+#     top <- bb['ymax']
+#     bot <- bb['ymin']
+#     steps <- seq(bot, top, by = (top - bot) / 80)
+#     for(i in steps[2:length(steps)]) {  # 2:n because 1:n renders a line "ymax" = "ymin"
+#       bf <- bb
+#       bf['ymax'] = i
+#       temp <- st_intersection(poly, st_as_sfc(bf, 4326))
+#       area2 <- st_area(temp) %>% sum()           # con get(.., i) coz st_area prints rounded
+#       if(drop_units(area2)/drop_units(area1) >= porcientos[j]) break
+#       df$geometry[j] <- st_geometry(temp)
+#     }
+#     poly2 <- st_difference(poly2, st_union(df))
+#   }
+#   df$geometry[length(porcientos)] <- st_geometry(st_difference(poly, st_union(df)))
+#   poly <- df
+# }
 ```
 
 # Test for undeveloped region polygons with st_make_grid
