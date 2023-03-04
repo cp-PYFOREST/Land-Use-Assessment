@@ -100,8 +100,7 @@ tm_shape(nf_2000_chaco)+
   tm_fill(col = "red")
 ```
 
-\`\`
-
+``
 ```{r}
 #This chunk is generate some problems... can we check it
 

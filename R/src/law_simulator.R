@@ -1,15 +1,7 @@
----
-title: "Seperate Functions"
-format: html
-editor: visual
----
-
-# Select Property
-
-```{r input data}
+## ----input data-----------------------------------------------------------------------
 select_property <- function(property_cat) {
-  property_cat <- as.character(property_cat)
-  property_cat <- paste0('0', property_cat)
+  #property_cat <- as.character(property_cat)
+  #property_cat <- paste0('0', property_cat)
   
   
   if (property_cat %in% limit_lu$cat) {
@@ -25,11 +17,9 @@ select_property <- function(property_cat) {
 
 #NEED TO DEVELOP TEST FOR SF OBJECT
 #if(class(p)[1] != "sf") p <- sf::st_as_sf(p)
-```
 
-# Input of Paddock and Hedgerow Dimensions
 
-```{r}
+## -------------------------------------------------------------------------------------
 # property_dimensions <- function(paddock_area = 999000,
 #                                  hedgerow_width = 50,
 #                                  width_paddock = 1,
@@ -116,9 +106,9 @@ select_property <- function(property_cat) {
 # 
 # }
 
-```
 
-```{r}
+
+## -------------------------------------------------------------------------------------
 
 # 
 #  property_dimensions <- function(paddock_area = 999000,
@@ -192,9 +182,9 @@ select_property <- function(property_cat) {
 # }
 # 
 
-```
 
-```{r}
+
+## -------------------------------------------------------------------------------------
 # 1222580.005 width_paddock = 3,height_paddock = 1
 #1222999.9
 
@@ -227,11 +217,9 @@ property_dimensions <- function(desired_area = 999000 ,
 
 }
 
-```
 
-# Create Grid & Rotate
 
-```{r}
+## -------------------------------------------------------------------------------------
 grid_rotate <-
   function(boundary_property = property_boundary,
            x_y = pad_hedg_dim) {
@@ -281,7 +269,7 @@ grid_rotate <-
     grd_rot <- tran(grd, rotang, center) |> st_set_crs("EPSG:32721")
     
     st_crs(grd_rot) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
- 
+    
     
     
     
@@ -289,11 +277,9 @@ grid_rotate <-
     return(test_rot)
   }
 
-```
 
-# Riparian Corridor
 
-```{r}
+## -------------------------------------------------------------------------------------
 
 riparian_cut <- function(rip_corr = riparian_corridor, prop_gr = property_grid) {
   # Using riparian corridor cut the property fragments
@@ -302,15 +288,12 @@ riparian_cut <- function(rip_corr = riparian_corridor, prop_gr = property_grid) 
   } else{
     prop_frag_rip <-
       st_difference(prop_gr, rip_corr)
-
     return(prop_frag_rip)
   }
 }
-```
 
-# Forest Reserve
 
-```{r}
+## -------------------------------------------------------------------------------------
 reserve <- function(grid = property_fragment) {
   grid_boundary_sf <- st_as_sf(grid)
   
@@ -325,7 +308,7 @@ reserve <- function(grid = property_fragment) {
     area_check <-
       sum((st_area(forest) / sum(st_area(cell_areas))) * 100 )
     
-    if (area_check >= set_units(35,1) & area_check <= set_units(38,1)) {
+    if (area_check >= set_units(25,1) & area_check <= set_units(28,1)) {
       break
     }
     n <- n + 1
@@ -333,11 +316,9 @@ reserve <- function(grid = property_fragment) {
   forest <- st_union(forest)
   return(forest)
 }
-```
 
-# Remaining Area w/o Forest Reserve
 
-```{r}
+## -------------------------------------------------------------------------------------
 no_reserve_area <- function(grid_property = property_fragment,
                             fr_union = forest_reserve){
   #remaining property without forest reserve
@@ -347,16 +328,9 @@ no_reserve_area <- function(grid_property = property_fragment,
   
 
 }
-```
 
-# River Check
 
-riparian \<- st_difference(boundary_property,riparian)
-
-st_crs(riparian) \<- "+proj=utm +zone=21 +south +ellps=WGS84
-+datum=WGS84 +units=m +no_defs"
-
-```{r}
+## -------------------------------------------------------------------------------------
 riparian_buffer <-
   function(boundary_property = property_boundary,
            hydrology = hydro,
@@ -366,25 +340,20 @@ riparian_buffer <-
     if (lengths(st_crosses(boundary_property, hydrology)) > 0) {
       riv_test <- st_intersection(hydrology, property_boundary) |>
         st_make_valid() 
+        #st_transform("EPSG:32721")
       st_crs(riv_test) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-
-      #|> st_transform("EPSG:32721")
       
       # buffer around river
       riparian <- st_buffer(riv_test, dist = buffer, endCapStyle = 'FLAT', nQuadSegs = 60)
-      #riparian <- st_difference(boundary_property,riparian)
-            #st_crs(riparian) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
       return(riparian)
       
     } else{
       return(NULL)
     }
   }
-```
 
-# Divide Area into paddocks and hedgerows
 
-```{r}
+## -------------------------------------------------------------------------------------
 make_hedges <- function(fragment = property_remaining) {
   # Make remaining property without forest into a a solid polygon and regrid. Regridding creates individual cells with geometry that can be buffered for hedgerows
   #fragment_valid <- st_union(fragment) |> st_make_valid() |> st_cast(to = 'POLYGON')
@@ -397,9 +366,9 @@ make_hedges <- function(fragment = property_remaining) {
   
   return(hedge)
 }  
-```
 
-```{r}
+
+## -------------------------------------------------------------------------------------
 
 make_paddocks <- function(frag = property_remaining, rows = hedgerows) {
     # pad will give the combined paddocks as one polygon to so st_area only returns one value
@@ -413,15 +382,13 @@ make_paddocks <- function(frag = property_remaining, rows = hedgerows) {
 # To get individual paddocks regrid area that has removed forest and take difference with hedgerows
     
   }
-```
 
-# `sf` st_erase
 
-```{r}
+## -------------------------------------------------------------------------------------
 st_erase = function(x, y) st_difference(x, st_union(st_combine(y)))
-```
 
-```{r}
+
+## -------------------------------------------------------------------------------------
 # if(is.null(riparian_corridor) ) {
 #     final_paddock <- paddocks
 #     final_hedgrow <- hedgerows
@@ -463,9 +430,9 @@ st_erase = function(x, y) st_difference(x, st_union(st_combine(y)))
 # tm_shape(final_paddock) +
 #   tm_polygons('beige')
 # )
-```
 
-```{r}
+
+## -------------------------------------------------------------------------------------
 # 
 # tm_shape(property_boundary) +
 #   tm_sf()
@@ -492,4 +459,4 @@ st_erase = function(x, y) st_difference(x, st_union(st_combine(y)))
 
 
 
-```
+

@@ -1,33 +1,21 @@
-# Libraries
-
-```{r}
-#| include: false
+## -------------------------------------------------------------------------------------
 library(sf)
 library(tidyverse)
 library(here)
 library(units)
 library(knitr)
 library(flextable)
-```
 
-# Source Data
 
-```{r}
-#| include: false
-
+## -------------------------------------------------------------------------------------
 source(knitr::purl(here("R", "load_data.qmd")))
-```
 
-# Source Functions
 
-```{r}
-#| include: false
-source(knitr::purl(here("R", "functions.qmd")))
-```
+## -------------------------------------------------------------------------------------
+source(knitr::purl(here("R", 'src', "law_simulator.qmd")))
 
-# Collect Stats
 
-```{r}
+## -------------------------------------------------------------------------------------
 system.time({
   # create a vector of unique combinations of width_paddock and height_paddock
 paddock_dims <- expand_grid(width_paddock = 1:4, height_paddock = 1:4)
@@ -272,31 +260,29 @@ for (i in seq_along(limit_lu$cat)) {
 # save the final dataframe
 #saveRDS(results_df, "results.rds")
 })
-```
-
-```{r}
-
-results_df <- readRDS(results_df, 'results2.rds')
-```
 
 
-```{r}
+## -------------------------------------------------------------------------------------
+
+#results_df <- readRDS(results_df, 'results2.rds')
+
+
+## -------------------------------------------------------------------------------------
 percentages <- results_df |>
   select(-error_paddocks, -error_hedgerow, -corridor_area, -property_area, -property_units, -fr_area, -paddocks_area, -paddocks_units, - hedgerow_area, -fr_units) |>
   drop_units() |> 
   replace_na(replace = list(corridor_per = 0)) |> mutate(sum_percentage = fr_per + paddocks_per + hedgerow_per + corridor_per)
 flextable(percentages)
-```
 
-```{r}
 
-read_rds('areas_pads_999999.rds')
-read_rds('areas_pads_999.rds')
-read_rds('areas_pads_tol005.rds')
+## -------------------------------------------------------------------------------------
+
+#read_rds('areas_pads_999999.rds')
+#read_rds('areas_pads_999.rds')
+#read_rds('areas_pads_tol005.rds')
 paddocks_list <- read_rds('paddocks_df.rds')
 
 #areas_pads
-paddocks_list$paddocks_list
+#paddocks_list$paddocks_list
 #saveRDS(areas_pads_999999,"areas_pads_999999.rds")
-```
 
