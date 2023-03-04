@@ -3,19 +3,136 @@ editor:
   markdown: 
     wrap: 72
 ---
-
-
-# Libraries
-
+ 
 ```{r}
-#| include: false
 library(sf)
 library(tmap)
 library(tidyverse)
 library(here)
-library(units)
 library(knitr)
+library(mapview)
 ```
+ 
+ 
+```{r}
+
+#ource(knitr::purl(here("R",'src', "collect_stats.qmd")))
+#source(knitr::purl(here("R",'src', "boundary_registry_data.qmd")))
+```
+ 
+ 
+```{r}
+
+undeveloped_region <- st_read('/capstone/pyforest/data/undeveloped_region/expansion3.shp')
+
+st_crs(undeveloped_region) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+
+dist_filadelphia <- st_read('/capstone/pyforest/data/dist_filadelphia/dist_filadelphia.shp')
+
+hydro <- st_read(here('/capstone/pyforest/data/roads_hydrology/ly_hid2.shp'))  
+st_crs(hydro) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+```
+
+```{r}
+
+tmap_mode('view')
+tmap_options(check.and.fix = TRUE)
+tm_shape(undeveloped_region) +
+  tm_fill(col = 'red')
+plot(undeveloped_region)
+
+```
+ 
+ 
+```{r}
+
+limit_lu <- st_intersection(dist_filadelphia, undeveloped_region ) |> 
+  st_union( is_coverage = TRUE) |>
+  st_as_sf() 
+
+
+tm_shape(limit_lu) +
+  tm_sf(col = 'red')
+
+```
+
+```{r}
+st_crs(active_inactive) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+```
+
+
+```{r}
+
+avg_property <- active_inactive |>
+  mutate(property_area = st_area(active_inactive), .before = geometry) |>
+  drop_units() |>
+  st_drop_geometry() |>
+  summarize(mean = mean(property_area)) |> 
+  as.integer()
+
+```
+ 
+ 
+```{r}
+dimensions <- property_dimensions(desired_area = avg_property) 
+```
+ 
+```{r}
+undeveloped_gridded <- grid_rotate(boundary_property = undeveloped_region, x_y = dimensions) |> st_as_sf()
+
+
+plot(undeveloped_gridded)
+tmap_mode('view')
+tmap_options(check.and.fix = TRUE)
+tm_shape(undeveloped_gridded) +
+  tm_sf()
+
+average_properties <- undeveloped_gridded |> 
+  mutate(cat = seq(1:5800), 
+         area = st_area(undeveloped_gridded), .before = x) |>
+  drop_units() 
+
+plot(average_properties['area'])
+hist(average_properties$area)
+tm_shape(average_properties) +
+  tm_sf()
+```
+ 
+ 
+
+ 
+
+ 
+ 
+```{r}
+tm_shape(limit_lu) +
+  tm_borders(col = 'red')
+```
+ 
+ 
+```{r}
+# system.time({
+#   source(knitr::purl(here("R",'src', "forest_cover_vars.qmd")))
+# }) 
+
+#districts <- st_read('/capstone/pyforest/data/Political_Boundaries/distritos.shp') |>
+#  st_make_valid()
+
+#departments <- st_read('/capstone/pyforest/data/Political_Boundaries/departamento.shp') |>
+#  st_make_valid()
+
+#wildlife_protected <- st_read('/capstone/pyforest/data/Wildlife_Protection_Areas/ASP_ROCC.shp')
+
+#certificadas <- st_read('/capstone/pyforest/data/Certificadas/certificadas.shp')
+
+#indigenous_land <- st_read('/capstone/pyforest/data/Indigenous_Land/native_land.shp')
+
+```
+ 
+
 
 ```{r}
 #https://gis.stackexchange.com/questions/375345/dividing-polygon-into-parts-which-have-equal-area-using-r
@@ -85,19 +202,16 @@ library(knitr)
 ```{r}
 
 # Create a dataset of sfc cells using st_make_grid
-bbox <- st_bbox(c(0, 0, 10, 10))
-grid_size <- c(2, 2)
-grid <- st_make_grid(bbox, cellsize = c(diff(bbox[c(1, 3)]) / grid_size[1],
-                                         diff(bbox[c(2, 4)]) / grid_size[2]))
+#bbox <- st_bbox(c(0, 0, 10, 10))
+#grid_size <- c(2, 2)
+#grid <- st_make_grid(bbox, cellsize = c(diff(bbox[c(1, 3)]) / grid_size[1],
+#                                         diff(bbox[c(2, 4)]) / grid_size[2]))
 
 ```
 
 # Source Functions
 
-```{r}
-#| include: false
-source(knitr::purl(here("R", "scratch_function.qmd")))
-```
+
 
 Variables to call with: property_select(): property_cat
 
@@ -105,6 +219,3 @@ property_dimension(): paddock_area = 999000, hedgerow_width = 50,
 width_paddock = 1, height_paddock = 1, tol = 0.01, new_dim = NULL,
 max_iter = 100
 
-```{r}
-
-```

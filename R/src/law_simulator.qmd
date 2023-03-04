@@ -1,5 +1,5 @@
 ---
-title: "Seperate Functions"
+title: "functions"
 format: html
 editor: visual
 ---
@@ -8,8 +8,8 @@ editor: visual
 
 ```{r input data}
 select_property <- function(property_cat) {
-  property_cat <- as.character(property_cat)
-  property_cat <- paste0('0', property_cat)
+  #property_cat <- as.character(property_cat)
+  #property_cat <- paste0('0', property_cat)
   
   
   if (property_cat %in% limit_lu$cat) {
@@ -281,7 +281,7 @@ grid_rotate <-
     grd_rot <- tran(grd, rotang, center) |> st_set_crs("EPSG:32721")
     
     st_crs(grd_rot) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
- 
+    
     
     
     
@@ -302,7 +302,6 @@ riparian_cut <- function(rip_corr = riparian_corridor, prop_gr = property_grid) 
   } else{
     prop_frag_rip <-
       st_difference(prop_gr, rip_corr)
-
     return(prop_frag_rip)
   }
 }
@@ -325,7 +324,7 @@ reserve <- function(grid = property_fragment) {
     area_check <-
       sum((st_area(forest) / sum(st_area(cell_areas))) * 100 )
     
-    if (area_check >= set_units(35,1) & area_check <= set_units(38,1)) {
+    if (area_check >= set_units(25,1) & area_check <= set_units(28,1)) {
       break
     }
     n <- n + 1
@@ -351,11 +350,6 @@ no_reserve_area <- function(grid_property = property_fragment,
 
 # River Check
 
-riparian \<- st_difference(boundary_property,riparian)
-
-st_crs(riparian) \<- "+proj=utm +zone=21 +south +ellps=WGS84
-+datum=WGS84 +units=m +no_defs"
-
 ```{r}
 riparian_buffer <-
   function(boundary_property = property_boundary,
@@ -366,14 +360,11 @@ riparian_buffer <-
     if (lengths(st_crosses(boundary_property, hydrology)) > 0) {
       riv_test <- st_intersection(hydrology, property_boundary) |>
         st_make_valid() 
+        #st_transform("EPSG:32721")
       st_crs(riv_test) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-
-      #|> st_transform("EPSG:32721")
       
       # buffer around river
       riparian <- st_buffer(riv_test, dist = buffer, endCapStyle = 'FLAT', nQuadSegs = 60)
-      #riparian <- st_difference(boundary_property,riparian)
-            #st_crs(riparian) <- "+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
       return(riparian)
       
     } else{
