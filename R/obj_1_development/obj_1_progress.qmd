@@ -1,0 +1,149 @@
+---
+title: "Objective 1 Progress"
+format: html
+editor: visual
+---
+
+\*\* Need to rename and update variables to more useful names \*\*
+
+```{r}
+library(terra)
+library(sf)
+library(tmap)
+```
+
+### Chaco Statistics
+
+```{r}
+# Total area chaco
+chaco <- sf::st_read(file.path(datadir, "study_boundary/study_boundary.shp"))
+chaco_area <- st_area(chaco) # m^2
+chaco_ha <- chaco_area/10000 # hectares
+chaco_ha <- as.numeric(gsub("[^0-9.]+", "", chaco_ha)) # drops units 
+
+```
+
+### 2000 - 2005
+
+```{r}
+# Data 
+r <- fl_00_05
+s <- vect(lup_2000_2005) # sf::sf object must be terra::vect object
+```
+
+#### Forest Loss Statistics
+
+\*\*Note: make df with stats for all years (?) \*\*
+
+```{r}
+# Total number of deforestation cells for fl 2000 - 2005 raster 
+dim <- dim(r)
+tot_cell <- dim[1] * dim[2]
+total_loss <- sum(r[] == 1, na.rm = TRUE)
+```
+
+```{r}
+# Calculate area of forest loss from raster cells  
+fl_00_05_sq_m <- total_loss * (30^2)
+fl_00_05_ha <- fl_00_05_sq_m / 10000
+fl_00_05_ha
+
+# Percent of forest loss of the Paraguayan Chaco 
+p_00_05_chaco <- round((fl_00_05_ha / chaco_ha) * 100, 2)
+
+print(paste0("Between 2000 - 2005 ", fl_00_05_ha, " hectares of forest was lost that is ", p_00_05_chaco, " percent of the paraguayan chaco."))
+```
+
+#### Authorized FL
+
+```{r}
+# Check ext of raster and polygons 
+ext(r)
+ext(s)
+
+# Set the resolution of the raster to match the shapefile extent 
+ext(r) <- ext(s) # now they match extents 
+
+# Crop the raster to the extent of the shapefile
+r_crop <- crop(r, s)
+
+# Mask the raster with the shapefile
+r_mask <- mask(r_crop, s)
+
+
+# Extract the cell values of the masked raster for each property
+prop_data <- extract(r_mask, s, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+
+
+## NEED TO FIGURE OUR IF GOAL IS TO SHOW DF ASSOCIATED TO LUP##***********
+
+# Data frame w/authorized df for each property **we can drop put_id also**
+# id <- st_drop_geometry(lup_2000_2005)$put_id
+# a_fl_lup_id <- left_join(prop_data, lup_2000_2005, by = c("ID"="id"))
+# NOTE :: id's don't match so this is incorrect *****
+  
+```
+
+```{r}
+# Caclulate auth. fl 
+auth_fl <- prop_data %>% 
+  mutate(auth_area_m_2 = prop_data$periodo_ca * (30)^2) %>% 
+  mutate(auth_area_ha = (prop_data$periodo_ca * (30)^2) / 10000)
+
+
+tot_auth_fl_ha <- sum(auth_fl$auth_area_ha)
+
+# Check tot area and compare to the total fl of 2000 - 2005 should be less
+fl_00_05_ha
+tot_auth_fl_ha
+
+```
+
+#### Unauthorized FL
+
+```{r}
+# Get the number of cells outside of the properties with a value of 1
+
+total_loss <- sum(!is.na(r[])) # totals up all cells that are 1 
+outside_loss <- total_loss - sum(prop_data) # subtracts cells 
+outside_loss
+
+unauth_fl_ha = (outside_loss * (30)^2) / 10000
+```
+
+```{r}
+# check that the authorized and non authorized equal the total loss 
+# unauth_fl_ha Authorized
+# tot_auth_fl_ha Not authorized
+# fl_00_05_ha Total FL based on raster
+
+
+# Check whether the sum of unauth_fl_ha and tot_auth_fl_ha equals fl_00_05_ha
+sum_fl_ha <- unauth_fl_ha + tot_auth_fl_ha
+if (sum_fl_ha == fl_00_05_ha) {
+  print("The sum of unauth_fl_ha and tot_auth_fl_ha equals fl_00_05_ha.")
+} else if (sum_fl_ha > fl_00_05_ha) {
+  diff_fl_ha <- round(sum_fl_ha - fl_00_05_ha, 2)
+  print(paste("The sum of unauth_fl_ha and tot_auth_fl_ha is", diff_fl_ha, "hectares larger than fl_00_05_ha."))
+} else {
+  diff_fl_ha <- round(fl_00_05_ha - sum_fl_ha,2)
+  print(paste("The sum of unauth_fl_ha and tot_auth_fl_ha is", diff_fl_ha, "hectares smaller than fl_00_05_ha."))
+}
+
+
+```
+
+#### Maps 2000 - 2005
+
+```{r}
+# Resampled to lower resoultion 
+# *** Note resoultion is not accurate of data ***
+tmap_mode("view")
+r_mask_down_00 <- aggregate(r_mask, fact=5) 
+r_fl <- aggregate(fl_00_05, fact=5)
+# view 
+tm_shape(r_mask_down_00) + tm_raster(palette = "Reds") + 
+  tm_shape(r_fl) + tm_raster(palette = "Blues") +
+  tm_shape(lup_2000_2005) + tm_fill(col = "dodgerblue") 
+
+```
