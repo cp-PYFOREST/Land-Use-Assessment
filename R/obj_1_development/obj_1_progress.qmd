@@ -4,15 +4,53 @@ format: html
 editor: visual
 ---
 
-\*\* Need to rename and update variables to more useful names \*\*
-
 ```{r}
-library(terra)
+# Load packages ---------------------------------------------------------
 library(sf)
+library(tidyverse)
+library(terra) 
 library(tmap)
+library(leaflet)
+library(ggplot2)
 ```
 
-### Chaco Statistics
+### Data
+
+```{r}
+# Data directory ---------------------------------------------------------
+datadir <- path.expand("~/../../capstone/pyforest/data")
+```
+
+```{r}
+# Forest loss --------------------------------------------------------
+fl_00_05 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20002005.tif"))
+
+# fl_05_11 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20052011.tif"))
+# 
+# fl_11_13 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20112013.tif"))
+# 
+# fl_13_15 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20132015.tif"))
+# 
+# fl_15_17 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20152017.tif"))
+# 
+# fl_17_18 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20172018.tif"))
+# 
+# fl_18_19 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20182019.tif"))
+# 
+# fl_19_20 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20192020.tif"))
+```
+
+```{r}
+# Read in .R that sorts active LUP for year ranges ---------------------------------
+source("lup_data.R")
+```
+
+```{r}
+# LUP w/forest reserve/hedgerows/paddocks polygons ----------------------------------
+# data is still not cleaned up with matching put_id (*v_2)
+# lup_w_categories <- sf::st_read(file.path(datadir, "permited_land_use/catastro_forestal.shp"))
+lup_w_categories <- st_read(file.path(datadir, "permited_land_use/in_progress_v2_permited_lup_data/uso_alternativo_v2.gpkg"))
+```
 
 ```{r}
 # Total area chaco
@@ -23,23 +61,15 @@ chaco_ha <- as.numeric(gsub("[^0-9.]+", "", chaco_ha)) # drops units
 
 ```
 
-### 2000 - 2005
 
-```{r}
-# Data 
-r <- fl_00_05
-s <- vect(lup_2000_2005) # sf::sf object must be terra::vect object
-```
+# 2000 - 2005 
 
-#### Forest Loss Statistics
-
-\*\*Note: make df with stats for all years (?) \*\*
-
+###  Total FL 
 ```{r}
 # Total number of deforestation cells for fl 2000 - 2005 raster 
-dim <- dim(r)
+dim <- dim(fl_00_05)
 tot_cell <- dim[1] * dim[2]
-total_loss <- sum(r[] == 1, na.rm = TRUE)
+total_loss <- sum(fl_00_05[] == 1, na.rm = TRUE)
 ```
 
 ```{r}
@@ -49,26 +79,234 @@ fl_00_05_ha <- fl_00_05_sq_m / 10000
 fl_00_05_ha
 
 # Percent of forest loss of the Paraguayan Chaco 
-p_00_05_chaco <- round((fl_00_05_ha / chaco_ha) * 100, 2)
+p_00_05_chaco_ha <- round((fl_00_05_ha / chaco_ha) * 100, 2)
 
-print(paste0("Between 2000 - 2005 ", fl_00_05_ha, " hectares of forest was lost that is ", p_00_05_chaco, " percent of the paraguayan chaco."))
+print(paste0("Between 2000 - 2005 ", fl_00_05_ha, " hectares of forest was lost that is ", p_00_05_chaco_ha, " percent of the paraguayan chaco."))
 ```
 
-#### Authorized FL
+### Subsets of LUP 
+```{r}
+# Data 
+# fl_00_05
+#lup_2000_2005
+
+# Filter the permitted_lup data with the active properties for the year range
+lup_active_00_05 <- lup_w_categories %>% 
+  filter(put_id == lup_2000_2005$put_id)
+```
+
+
+```{r}
+# Now lets make subsets for each category of Bosques Proteccion (Protected forest), Reservera legal (forest reserve, hedgerows, buffers), Area authroizada (authorized fl )
+  #unique(lup_active_00_05$categoria)
+  #unique(lup_active_00_05$grupo)
+
+# SUBSET LUP DATA BASED ON GROUPS ----------------------------------------------
+
+  # 1. Paddocks (deforestation allowed) 
+lup_paddocks_00_05 <- lup_active_00_05 %>% filter(grupo == "AREA_AUTORIZADA")  %>% st_sf()
+
+
+  # 2. Forest Reserve (forest area) 
+lup_forestreserve_00_05 <- lup_active_00_05 %>% filter(grupo == "RESERVA_LEGAL")  %>% st_sf()
+
+  # 3. Protected Forest hedgerow/riparian
+lup_protect_forest_00_05 <- lup_active_00_05 %>% filter(grupo == "BOSQUES_PROTECCION") %>% st_sf()
+
+  #. 4. Others (grasslands, many categories deforestation ilegal/legal(?)) need clarificaiton
+lup_other_00_05 <- lup_active_00_05 %>% filter(grupo == "OTROS") %>% st_sf()
+#lup_other_00_05 # DOUBLE CHECK ..... going with illegal
+
+  # 5. NA 
+# lup_na_00_05 <- lup_active_00_05 %>% filter(grupo == "NA") %>% st_sf()
+
+```
+
+
+
+### Authorized
 
 ```{r}
 # Check ext of raster and polygons 
-ext(r)
-ext(s)
+ext(fl_00_05)
+ext(lup_paddocks_00_05)
+
+## FOLLOW THE FOLLOWING STEPS IF EXTENTS DON'T MATCH IN THIS CASE THEY MATCH
 
 # Set the resolution of the raster to match the shapefile extent 
-ext(r) <- ext(s) # now they match extents 
+# ext(fl_00_05) <- ext(lup_paddocks_00_05) # now they match extents 
 
 # Crop the raster to the extent of the shapefile
-r_crop <- crop(r, s)
+# fl_00_05_crop <- crop(fl_00_05, lup_paddocks_00_05)
 
 # Mask the raster with the shapefile
-r_mask <- mask(r_crop, s)
+# fl_00_05_mask <- mask(fl_00_05_crop, lup_paddocks_00_05)
+
+auth_00_05 <- extract(fl_00_05, lup_paddocks_00_05, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+
+auth_fl <- auth_00_05 %>% 
+  mutate(auth_area_m_2 = auth_00_05$periodo_ca * (30)^2) %>% 
+  mutate(auth_area_ha = (auth_00_05$periodo_ca * (30)^2) / 10000)
+
+
+tot_auth_fl_ha <- sum(auth_fl$auth_area_ha)
+
+# Check tot area and compare to the total fl of 2000 - 2005 should be less
+fl_00_05_ha
+tot_auth_fl_ha
+```
+
+
+
+### Unauthorized in LUP 
+```{r}
+
+## FOREST RESERVE -------------------------------------------------------------
+# lup_forestreserve_00_05
+
+unauth_fr_00_05 <- extract(fl_00_05, lup_forestreserve_00_05, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+
+unauth_fr <- unauth_fr_00_05 %>% 
+  mutate(unauth_area_m_2 = unauth_fr_00_05$periodo_ca * (30)^2) %>% 
+  mutate(unauth_area_ha = (unauth_fr_00_05$periodo_ca * (30)^2) / 10000)
+
+
+tot_unauth_fr_ha <- sum(unauth_fr$unauth_area_ha)
+tot_unauth_fr_ha
+```
+
+
+```{r}
+## Hedgerow/Riparian Forest (hrf) ---------------------------------------------------
+# lup_protect_forest_00_05
+unauth_hrf_00_05 <- extract(fl_00_05, lup_protect_forest_00_05, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+
+unauth_hrf <- unauth_hrf_00_05 %>% 
+  mutate(unauth_area_m_2 = unauth_hrf_00_05$periodo_ca * (30)^2) %>% 
+  mutate(unauth_area_ha = (unauth_hrf_00_05$periodo_ca * (30)^2) / 10000)
+
+
+tot_unauth_hrf_ha <- sum(unauth_hrf$unauth_area_ha)
+tot_unauth_hrf_ha
+```
+
+
+```{r}
+#lup_other_00_05
+fl_other <- extract(fl_00_05, lup_other_00_05, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+
+other_fl <- fl_other %>% 
+  mutate(unauth_area_m_2 = fl_other$periodo_ca * (30)^2) %>% 
+  mutate(unauth_area_ha = (fl_other$periodo_ca * (30)^2) / 10000)
+
+
+tot_unauth_other_ha <- sum(other_fl$unauth_area_ha)
+tot_unauth_other_ha
+```
+
+
+#### Unauthorized outside LUP 
+```{r}
+# Get the number of cells outside of the properties with a value of 1
+fl_in_lup <- extract(fl_00_05, lup_2000_2005, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+
+total_loss <- sum(!is.na(fl_00_05[])) # totals up all cells that are 1
+total_inside_loss <- sum(fl_in_lup$periodo_ca)
+outside_loss <- total_loss - total_inside_loss # subtracts cells
+outside_loss
+
+tot_unauth_outside_fl_ha = (outside_loss * (30)^2) / 10000
+```
+
+
+#### Checks 
+###### Maps 2000 - 2005
+
+```{r}
+# Resampled to lower resoultion 
+# *** Note resoultion is not accurate of data ***
+tmap_mode("view")
+fl_down_00_05 <- aggregate(fl_00_05, fact=5)
+#lup_2000_2005
+#lup_active_00_05
+#lup_paddocks_00_05
+#lup_forestreserve_00_05
+#lup_protect_forest_00_05
+#lup_other_00_05
+# view 
+tm_shape(fl_down_00_05) + tm_raster(palette = "Reds") + 
+  tm_shape(lup_2000_2005) + tm_fill(col = "lightblue") +
+  tm_shape(lup_active_00_05) + tm_polygons(col = "cyan3") +
+  tm_shape(lup_paddocks_00_05) + tm_fill(col = "dodgerblue") +
+  tm_shape(lup_forestreserve_00_05) + tm_fill(col = "red") + 
+  tm_shape(lup_forestreserve_00_05) + tm_fill(col = "darkgreen") +
+  tm_shape(lup_other_00_05) + tm_fill(col = "yellow")
+```
+
+###### Sums check  
+```{r}
+# check that the authorized and non authorized equal the total loss 
+    # tot_auth_fl_ha
+    # tot_unauth_fr_ha
+    # tot_unauth_hrf_ha
+    # tot_unauth_other_ha
+    # unauth_fl_ha
+    # fl_00_05_ha
+
+unauth <- tot_unauth_fr_ha + tot_unauth_hrf_ha + tot_unauth_other_ha + tot_unauth_outside_fl_ha
+auth <- tot_auth_fl_ha
+
+# Check whether the sum of unauth_fl_ha and tot_auth_fl_ha equals fl_00_05_ha
+sum_fl_ha <- unauth + auth
+if (sum_fl_ha == fl_00_05_ha) {
+  print("The sum of unauth_fl_ha and tot_auth_fl_ha equals fl_00_05_ha.")
+} else if (sum_fl_ha > fl_00_05_ha) {
+  diff_fl_ha <- round(sum_fl_ha - fl_00_05_ha, 2)
+  print(paste("The sum of unauth_fl_ha and tot_auth_fl_ha is", diff_fl_ha, "hectares larger than fl_00_05_ha."))
+} else {
+  diff_fl_ha <- round(fl_00_05_ha - sum_fl_ha,2)
+  print(paste("The sum of unauth_fl_ha and tot_auth_fl_ha is", diff_fl_ha, "hectares smaller than fl_00_05_ha."))
+}
+
+```
+
+##### Stats DF 
+```{r}
+# Forest left after fl of 00 - 05 
+forest_left <- chaco_ha - total_loss
+
+
+
+
+# 2000 - 2005 Stats 
+df_00_05 <- data.frame(Chaco = c("Total Area", "Forest Loss Area", "Percent Forest Loss",
+                                 "Paddocks FL", "Forest Reserve FL", "Hedgerow, Riparian FL", "Other FL",
+                                 "No LUP FL", "Forest Left", "Total Authorized FL", "Total Unauthorized FL"),
+                   Value = c(chaco_ha, fl_00_05_ha, p_00_05_chaco_ha, 
+                             tot_auth_fl_ha, tot_unauth_fr_ha, tot_unauth_hrf_ha, tot_unauth_other_ha,
+                             tot_unauth_outside_fl_ha, forest_left, auth, unauth),
+                   Unit = "ha")
+```
+
+
+
+
+## SCRATCH CODE 
+
+Authorized FL
+```{r}
+# Check ext of raster and polygons 
+ext(fl_00_05)
+ext(lup_2000_2005_sf)
+
+# Set the resolution of the raster to match the shapefile extent 
+ext(fl_00_05) <- ext(lup_2000_2005_sf) # now they match extents 
+
+# Crop the raster to the extent of the shapefile
+fl_00_05_crop <- crop(fl_00_05, lup_2000_2005_sf)
+
+# Mask the raster with the shapefile
+fl_00_05_mask <- mask(fl_00_05_crop, lup_2000_2005_sf)
 
 
 # Extract the cell values of the masked raster for each property
@@ -99,7 +337,7 @@ tot_auth_fl_ha
 
 ```
 
-#### Unauthorized FL
+Unauthorized FL
 
 ```{r}
 # Get the number of cells outside of the properties with a value of 1
@@ -133,17 +371,3 @@ if (sum_fl_ha == fl_00_05_ha) {
 
 ```
 
-#### Maps 2000 - 2005
-
-```{r}
-# Resampled to lower resoultion 
-# *** Note resoultion is not accurate of data ***
-tmap_mode("view")
-r_mask_down_00 <- aggregate(r_mask, fact=5) 
-r_fl <- aggregate(fl_00_05, fact=5)
-# view 
-tm_shape(r_mask_down_00) + tm_raster(palette = "Reds") + 
-  tm_shape(r_fl) + tm_raster(palette = "Blues") +
-  tm_shape(lup_2000_2005) + tm_fill(col = "dodgerblue") 
-
-```
