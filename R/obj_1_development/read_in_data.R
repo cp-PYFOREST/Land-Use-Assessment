@@ -5,7 +5,6 @@ library(here)
 library(dplyr)
 library(sf)
 library(tmap)
-library(rgdal)
 
 
 ## DATA DIRECTORY ---------------------------------------------------------

@@ -12,6 +12,8 @@ library(terra)
 library(tmap)
 library(leaflet)
 library(ggplot2)
+library(exactextractr)
+library(units)
 ```
 
 ### Data
@@ -24,7 +26,10 @@ datadir <- path.expand("~/../../capstone/pyforest/data")
 ```{r}
 # Forest loss --------------------------------------------------------
 fl_00_05 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20002005.tif"))
+fl_00_05
+```
 
+```{r}
 # fl_05_11 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20052011.tif"))
 # 
 # fl_11_13 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20112013.tif"))
@@ -41,8 +46,34 @@ fl_00_05 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl
 ```
 
 ```{r}
-# Read in .R that sorts active LUP for year ranges ---------------------------------
+# Source  in  function for active lup_period
+#
+#  ---------------------------------
 source("lup_data.R")
+
+
+```
+
+
+
+```{r}
+# Read in LUP data 
+datadir <- path.expand("~/../../capstone/pyforest/data")
+lup <- readRDS(file.path(datadir, "active_inactive/active_inactive.rds"))
+#unique(lup$cod_dpto) #(P,Q,R departments of Chaco)
+```
+
+
+```{r}
+# Apply function to get active LUP for year ranges 
+lup_2000_2005 <- lup_period(2000, 2005, lup)
+# lup_2005_2011 <- lup_period(2005, 2011, lup)
+# lup_2011_2013 <- lup_period(2011, 2013, lup)
+# lup_2013_2015 <- lup_period(2013, 2016, lup)
+# lup_2015_2017 <- lup_period(2015, 2017, lup)
+# lup_2017_2018 <- lup_period(2017, 2018, lup)
+# lup_2018_2019 <- lup_period(2018, 2019, lup)
+# lup_2019_2020 <- lup_period(2019, 2020, lup)
 ```
 
 ```{r}
@@ -52,12 +83,42 @@ source("lup_data.R")
 lup_w_categories <- st_read(file.path(datadir, "permited_land_use/in_progress_v2_permited_lup_data/uso_alternativo_v2.gpkg"))
 ```
 
+# Check CRS
+
+```{r}
+crs(fl_00_05)
+
+```
+
+```{r}
+crs(lup_w_categories)
+```
+
+```{r}
+# reproject to crs EPSG32721
+
+lup_w_categories_proj <- st_transform(lup_w_categories, crs(fl_00_05))
+crs(lup_w_categories_proj)
+```
+
 ```{r}
 # Total area chaco
 chaco <- sf::st_read(file.path(datadir, "study_boundary/study_boundary.shp"))
-chaco_area <- st_area(chaco) # m^2
-chaco_ha <- chaco_area/10000 # hectares
-chaco_ha <- as.numeric(gsub("[^0-9.]+", "", chaco_ha)) # drops units 
+
+crs(chaco)
+
+```
+
+```{r}
+# chaco_area <- st_area(chaco) # 240882905151 m^2
+# chaco_ha <- chaco_area/10000 #  24088291 hectares
+# chaco_ha <- as.numeric(gsub("[^0-9.]+", "", chaco_ha)) # 24088291 drops units 
+
+
+# library(units)
+chaco_area <- st_area(chaco) |> drop_units() # 240882905151 m^2
+chaco_ha <- chaco_area/10000
+
 
 ```
 
@@ -67,16 +128,27 @@ chaco_ha <- as.numeric(gsub("[^0-9.]+", "", chaco_ha)) # drops units
 
 ```{r}
 # Total number of deforestation cells for fl 2000 - 2005 raster 
-dim <- dim(fl_00_05)
-tot_cell <- dim[1] * dim[2]
-total_loss <- sum(fl_00_05[] == 1, na.rm = TRUE)
+dim <- dim(fl_00_05) # number of rows (dim[1]) and the number of columns (dim[2])
+tot_cell <- dim[1] * dim[2] # total number of cells in the raster dataset
+total_loss <- sum(fl_00_05[] == 1, na.rm = TRUE) # 8559598 CELLS WITH VALUE OF 1(30 X30 PIXEL)
 ```
+
+```{r}
+total_cell <- terra::global(fl_00_05, fun = "sum", na.rm = TRUE)
+total_cell # 8559598
+total_cell  * (30^2) #7703638200
+(total_cell  * (30^2)) / 10000 # 770363.8
+```
+
+
+
+
 
 ```{r}
 # Calculate area of forest loss from raster cells  
 fl_00_05_sq_m <- total_loss * (30^2)
 fl_00_05_ha <- fl_00_05_sq_m / 10000
-fl_00_05_ha
+fl_00_05_ha #8559598 * 900 = 7703638200 m^2 = 770,363.8 hectares
 
 # Percent of forest loss of the Paraguayan Chaco 
 p_00_05_chaco_ha <- round((fl_00_05_ha / chaco_ha) * 100, 2)
@@ -84,11 +156,30 @@ p_00_05_chaco_ha <- round((fl_00_05_ha / chaco_ha) * 100, 2)
 print(paste0("Between 2000 - 2005 ", fl_00_05_ha, " hectares of forest was lost that is ", p_00_05_chaco_ha, " percent of the paraguayan chaco."))
 ```
 
-### Subsets of LUP
+```{r}
+cellSize(fl_00_05, unit = 'm')
+
+```
+
 
 ```{r}
-lup_w_categories <- st_transform(lup_w_categories, crs(fl_00_05))
+# But note that for both angular (longitude/latitude) and for planar (projected) coordinate reference systems raster cells sizes are generally not constant, unless you are using an equal-area coordinate reference system.
+# 
+# For planar CRSs, the area is therefore not computed based on the linear units of the coordinate reference system, but on the *actual* area by transforming cells to longitude/latitude. If you do not want that correction, you can use transform=FALSE or init(x, prod(res(x)))
+# 
+cellSize(fl_00_05, unit = 'm', transform = FALSE)
 ```
+```{r}
+8559598 * 758.9813 / 10000
+
+8559598 * 764.5599 / 10000
+
+8559598 * 763.957 / 10000
+
+```
+
+
+### Subsets of LUP
 
 ```{r}
 # Data 
@@ -96,18 +187,8 @@ lup_w_categories <- st_transform(lup_w_categories, crs(fl_00_05))
 #lup_2000_2005
 
 # Filter the permitted_lup data with the active properties for the year range
-lup_active_00_05 <- lup_w_categories %>% 
+lup_active_00_05 <- lup_w_categories_proj %>% 
   filter(put_id %in% lup_2000_2005$put_id)
-
-# using ==  instead of %in%
-#Warning: There was 1 warning in `stopifnot()`.
-# ℹ In argument: `put_id == lup_2000_2005$put_id`.
-# Caused by warning in `put_id == lup_2000_2005$put_id`:
-# ! longer object length is not a multiple of shorter object length
-```
-
-```{r}
-crs(lup_active_00_05)
 ```
 
 ```{r}
@@ -142,60 +223,178 @@ lup_other_00_05 <- lup_active_00_05 %>% filter(grupo == "OTROS") %>% st_sf()
 # Check ext of raster and polygons 
 ext(fl_00_05)
 ext(lup_paddocks_00_05)
+st_bbox(lup_paddocks_00_05) # since it's an sf object let's make sure
+```
 
 ## FOLLOW THE FOLLOWING STEPS IF EXTENTS DON'T MATCH IN THIS CASE THEY MATCH
 
-# Set the resolution of the raster to match the shapefile extent 
-# ext(fl_00_05) <- ext(lup_paddocks_00_05) # now they match extents 
+```{r}
+## They don't match, and since extract does the same thing it is correct that it is
+## not completely necessary. The mask will remove values outside of the region of interest, any values outside of the mask are convereted to NA. We then crop the raster to the 
+## region of interest. 
 
-# Crop the raster to the extent of the shapefile
-# fl_00_05_crop <- crop(fl_00_05, lup_paddocks_00_05)
+# Set the extent of the raster to match the shapefile extent
+ext(fl_00_05) <- ext(lup_paddocks_00_05) # now they match extents
+#
+```
 
-# Mask the raster with the shapefile
-# fl_00_05_mask <- mask(fl_00_05_crop, lup_paddocks_00_05)
 
-auth_00_05 <- extract(fl_00_05, lup_paddocks_00_05, fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
+```{r}
+# # Crop the raster to the extent of the shapefile
+fl_00_05_crop <- crop(fl_00_05, lup_paddocks_00_05)
+#
+# # Mask the raster with the shapefile
+fl_00_05_mask <- mask(fl_00_05_crop, lup_paddocks_00_05)
+```
+
+
+
+```{r}
+fl_00_05_mask2 <- mask(fl_00_05, lup_paddocks_00_05)
+fl_00_05_crop2 <- crop(fl_00_05_mask2, lup_paddocks_00_05)
+
+```
+
+
+auth_00_05 <- terra::extract(fl_00_05_mask, lup_paddocks_00_05,fun=sum, na.rm=TRUE, df = TRUE, ID=TRUE)
 
 auth_fl <- auth_00_05 %>% 
   mutate(auth_area_m_2 = auth_00_05$periodo_ca * (30)^2) %>% 
-  mutate(auth_area_ha = (auth_00_05$periodo_ca * (30)^2) / 10000)
+  mutate(auth_area_ha = (auth_00_05$periodo_ca * (30)^2) / 10000) 
 
 
-
-
-```
-
-```{r}
-head(auth_00_05)
-head(auth_fl)
-```
-
-```{r}
 tot_auth_fl_ha <- sum(auth_fl$auth_area_ha)
 
 # Check tot area and compare to the total fl of 2000 - 2005 should be less
 fl_00_05_ha
 tot_auth_fl_ha
+auth_00_05
 
-# This is a record of what prints out before I make adjustment of changing == to %in%
-# SpatExtent : -81383.7196000004, 484866.2804, 7195682.0484, 7865432.0484 (xmin, xmax, ymin, ymax)
-# SpatExtent : -60.7591355273166, -57.2854120818839, -24.2619067209919, -19.7913566312062 (xmin, xmax, ymin, ymax)
-# [1] 770363.8
-# [1] 0.9
+plot(auth_00_05)
 
 
-## Record with %in%
-# SpatExtent : -81383.7196000004, 484866.2804, 7195682.0484, 7865432.0484 (xmin, xmax, ymin, ymax)
-# SpatExtent : -62.290594142132, -57.1907174615603, -24.8388508460932, -19.3125989226986 (xmin, xmax, ymin, ymax)
-# [1] 770363.8
-# [1] 877.14
+```{r}
+tmap_mode('plot')
+tm_shape(fl_00_05_crop2) +
+  tm_raster()
+```
 
 
-### Record of using %in% and fixing the differences in projections
-# SpatExtent : -81383.7196000004, 484866.2804, 7195682.0484, 7865432.0484 (xmin, xmax, ymin, ymax)
-# SpatExtent : -47558.6250780358, 480597.397687068, 7252588.06029103, 7862104.0410412 (xmin, xmax, ymin, ymax)
-# [1] 770363.8
-# [1] 144308.3
+# GUILLERMO
+
+touches	
+logical. If TRUE, values for all cells touched by lines or polygons are extracted, not just those on the line render path, or whose center point is within the polygon. Not relevant for points; and always considered TRUE when weights=TRUE or exact=TRUE
+
+
+```{r}
+auth_00_05_mask <- terra::extract(fl_00_05_mask, lup_paddocks_00_05, fun=sum, na.rm=TRUE, ID=TRUE, touches = TRUE, bind = TRUE)
+auth_00_05_bind
+```
+```{r}
+auth_00_05_crop <- terra::extract(fl_00_05_crop2, lup_paddocks_00_05, fun=sum, na.rm=TRUE, ID=TRUE, touches = TRUE, bind = TRUE)
+auth_00_05_bind
+
+```
+
+
+
+```{r}
+auth_00_05_bind <- terra::extract(fl_00_05, lup_paddocks_00_05, fun=sum, na.rm=TRUE, ID=TRUE, touches = TRUE, bind = TRUE)
+auth_00_05_bind
+```
+
+
+```{r}
+
+auth_00_05_ee <- as.data.frame(terra::extract(fl_00_05, lup_paddocks_00_05, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE))
+
+
+```
+
+```{r}
+# Assuming lup_paddocks_00_05 is a SpatVector object
+lup_paddocks_df <- as.data.frame(auth_00_05_bind) |>
+  mutate(auth_area_m_2 = auth_00_05_bind$periodo_ca * (30) ^ 2) %>%
+  mutate(auth_area_ha = (auth_00_05_bind$periodo_ca * (30) ^ 2) / 10000) |>
+  select(put_id, periodo_ca, auth_area_m_2, auth_area_ha)
+
+
+lup_paddocks_df_mask <- as.data.frame(auth_00_05_mask) |>
+  mutate(auth_area_m_2 = auth_00_05_bind$periodo_ca * (30) ^ 2) %>%
+  mutate(auth_area_ha = (auth_00_05_bind$periodo_ca * (30) ^ 2) / 10000) |>
+  select(put_id, periodo_ca, auth_area_m_2, auth_area_ha)
+
+
+
+
+lup_paddocks_df_crop <- as.data.frame(auth_00_05_crop) |>
+  mutate(auth_area_m_2 = auth_00_05_bind$periodo_ca * (30) ^ 2) %>%
+  mutate(auth_area_ha = (auth_00_05_bind$periodo_ca * (30) ^ 2) / 10000) |>
+  select(put_id, periodo_ca, auth_area_m_2, auth_area_ha)
+```
+
+
+```{r}
+# View the resulting data frame
+head(lup_paddocks_df)
+head(lup_paddocks_df_mask)
+head(lup_paddocks_df_crop)
+```
+
+
+```{r}
+sum(lup_paddocks_df$auth_area_ha)
+sum(lup_paddocks_df_crop$auth_area_ha)
+sum(lup_paddocks_df_mask$auth_area_ha)
+
+
+```
+
+```{r}
+plot(auth_00_05_bind)
+plot(auth_00_05_mask)
+plot(auth_00_05_crop)
+
+```
+
+```{r}
+fl_lup_df <- lup_paddocks_df |> 
+  group_by(put_id) |> 
+  summarize(fl_authorized = sum(auth_area_ha))
+fl_lup_df
+```
+
+
+# ZONAL
+```{r}
+fl_00_05_terra <- fl_00_05
+lup_paddocks_00_05_terra <- vect(lup_paddocks_00_05)
+auth_00_05_terra <- zonal(fl_00_05_terra, lup_paddocks_00_05_terra, fun = "sum", na.rm = TRUE, touches = TRUE, as.polygons = TRUE)
+
+auth_00_05_terra
+auth_00_05_terra$auth_area_m_2 <- auth_00_05_terra$sum * (30^2)
+auth_00_05_terra$auth_area_ha <- auth_00_05_terra$auth_area_m_2 / 10000
+tot_auth_fl_ha_terra <- sum(auth_00_05_terra$auth_area_ha, na.rm = TRUE)
+
+tot_auth_fl_ha_terra
+print(auth_00_05_terra)
+```
+# EXACT_EXTRACT
+```{r}
+auth_stats <- exact_extract(fl_00_05, lup_paddocks_00_05, 
+                            fun = 'count', force_df = TRUE)
+
+auth_stats
+```
+
+
+```{r}
+auth_stats$auth_area_m_2 <- auth_stats$sum * (30^2)
+auth_stats$auth_area_ha <- auth_stats$auth_area_m_2 / 10000
+tot_auth_fl_ha_exactextractr <- sum(auth_stats$auth_area_ha, na.rm = TRUE)
+
+auth_stats
+tot_auth_fl_ha_exactextractr
 ```
 
 ### Unauthorized in LUP

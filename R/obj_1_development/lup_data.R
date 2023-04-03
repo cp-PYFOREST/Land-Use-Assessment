@@ -7,8 +7,7 @@ library(here)
 library(dplyr)
 library(sf)
 library(tmap)
-library(rgdal)
-library(rgeos)
+
 
 
 # Create function for active lup_period
@@ -19,13 +18,13 @@ lup_period <- function(start_year, end_year, lup) {
 
 
 # Read in LUP data 
-datadir <- path.expand("~/../../capstone/pyforest/data")
-lup <- readRDS(file.path(datadir, "active_inactive/active_inactive.rds"))
-unique(lup$cod_dpto) #(P,Q,R departments of Chaco)
+#datadir <- path.expand("~/../../capstone/pyforest/data")
+#lup <- readRDS(file.path(datadir, "active_inactive/active_inactive.rds"))
+#unique(lup$cod_dpto) #(P,Q,R departments of Chaco)
 
 
 # Apply function to get active LUP for year ranges 
-lup_2000_2005 <- lup_period(2000, 2005, lup)
+#lup_2000_2005 <- lup_period(2000, 2005, lup)
 # lup_2005_2011 <- lup_period(2005, 2011, lup)
 # lup_2011_2013 <- lup_period(2011, 2013, lup)
 # lup_2013_2015 <- lup_period(2013, 2016, lup)

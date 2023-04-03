@@ -11,10 +11,8 @@ library(knitr)
 #| include: false
 #| warning: false
 
-source(knitr::purl(here("R",'src', "boundary_registry_data.qmd")))
-rm(forestry_registry)
-#property_boundaries
-#forestry_registry
+property_boundary <- st_read(dsn = "/capstone/pyforest/data/Permited_Land_Use/limite_put.shp") 
+
 ```
 
 ```{r}
