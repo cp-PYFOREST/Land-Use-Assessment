@@ -1,0 +1,373 @@
+---
+title: "Paraguayan Chaco Forest Cover & Loss"
+format: html
+editor: visual
+code-fold: true
+warning: false
+---
+
+```{r include = FALSE}
+# Libraries 
+library(ggplot2)
+library(mapview)
+library(tmap)
+library(tidyverse)
+library(plotly)
+library(leaflet)
+library(sf)
+library(RColorBrewer)
+library(htmltools)
+```
+
+```{r include = FALSE}
+# Data 
+
+# Data Directory
+datadir <- path.expand("~/../../capstone/pyforest/data")
+
+# Data 
+dist_fl <- read_csv(file.path(datadir, "forest_cover_forest_loss_area_results/chaco_dist_forest_loss.csv"))
+dept_fl <- read_csv(file.path(datadir, "forest_cover_forest_loss_area_results/chaco_dept_forest_loss.csv"))
+dist_fc <- read_csv(file.path(datadir, "forest_cover_forest_loss_area_results/chaco_dist_forest_cover.csv"))
+dept_fc <- read_csv(file.path(datadir, "forest_cover_forest_loss_area_results/chaco_dept_forest_cover.csv"))
+
+# Political Boundaries  
+districts <- st_read(file.path(datadir, "political_boundaries/distritos.shp"))
+chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R"))
+departments <- st_read(file.path(datadir, "political_boundaries/departamento.shp"))
+chaco_depts <- departments %>% filter(dpto %in% c("P", "Q", "R"))
+```
+
+
+### Departments Forest Cover
+```{r}
+# non interactive 
+
+# ggplot(data = dept_fc, aes(x = year, y = area_ha_round, group = nom_dpto, color = nom_dpto)) +
+#   geom_line(size = 1) +
+#   labs(title = "Forest Cover Over the Years",
+#        x = "Year",
+#        y = "Forest Cover Area (ha)",
+#        color = "Department") +
+#   theme_minimal() +
+#   theme(legend.position = "bottom")
+# # Convert year column to factor to preserve the order
+# dept_fc$year <- as.factor(dept_fc$year)
+
+
+# Create an interactive forest cover plot over the years
+plot_ly(data = dept_fc, x = ~year, y = ~area_ha_round, color = ~nom_dpto, type = "scatter", mode = "lines") %>%
+  layout(title = "Chaco Departments Forest Cover Over the Years",
+         xaxis = list(title = "Year", x = 0.5),
+         yaxis = list(title = "Forest Cover Area (ha)"),
+         legend = list(title = "Department"))
+
+```
+
+### Districts Forest Cover
+
+```{r}
+# Convert year column to factor to preserve the order
+dist_fc$year <- as.factor(dist_fc$year)
+
+plot_ly(data = dist_fc, x = ~year, y = ~area_ha_round, color = ~nom_dist, type = "scatter", mode = "lines") %>%
+  layout(title = list(text = "Chaco Districts Forest Cover Over the Years", x = 0.5), 
+         xaxis = list(title = "Year", title_standoff = 30), 
+         yaxis = list(title = "Forest Cover Area (ha)"),
+         legend = list(title = "Department",  
+                      bgcolor = "white",                     
+                      itemsizing = "constant",               
+                      itemwidth = 60,                        
+                      margin = list(l = 0, r = 0, t = 0, b = 0)))
+
+```
+
+
+### Departments Forest Loss
+
+```{r}
+# Create an interactive forest cover plot over the years
+plot_ly(data = dept_fl, x = ~year_range, y = ~area_ha_round, color = ~nom_dpto, type = "scatter", mode = "lines") %>%
+  layout(title = "Chaco Departments Forest Loss Over the Years",
+         xaxis = list(title = "Year", x = 0.5),
+         yaxis = list(title = "Forest Lorest Loss Area (ha)"),
+         legend = list(title = "Department"))
+```
+
+### Districts Forest Loss
+
+```{r}
+# Create an interactive forest cover plot over the years
+plot_ly(data = dist_fl, x = ~year_range, y = ~area_ha_round, color = ~nom_dist, type = "scatter", mode = "lines") %>%
+  layout(title = "Chaco Districts Forest Loss Over the Years",
+         xaxis = list(title = "Year", x = 0.5),
+         yaxis = list(title = "Forest Loss Area (ha)"),
+         legend = list(title = "District"))
+```
+
+# Maps
+
+
+
+```{r include = FALSE}
+### FC Maps Data 
+# Departments area all years
+chaco_depts_area <- chaco_depts %>%
+  mutate(dpt_tot_area = st_area(geometry),
+         dpt_tot_area_calc = dpt_tot_area/10000,
+         dpt_tot_area_ha = str_remove(dpt_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and yearly forest cover 
+dept_fc_w_geom <- dept_fc %>%
+  left_join(chaco_depts_area, by = "dpto")
+```
+
+```{r include = FALSE}
+
+# FC 2000 
+# Filter to year of intrest 
+dept_fc_w_geom_2000 <- dept_fc_w_geom[dept_fc_w_geom$year == 2000, ]
+
+# Calculate the percentage of forest cover for each year and district
+dept_fc_w_geom_2000 <- dept_fc_w_geom_2000 %>% 
+  mutate(percent_fc = (area_ha/dpt_tot_area_ha) * 100,
+         percent_fc_round = round(percent_fc, 2)) %>%
+   st_as_sf()
+
+```
+
+### 2000 Forest Cover Percentage by Department
+```{r include = FALSE}
+# Tmap
+
+#col <- c(#FFFFB2", "#FECC5C", "#FD8D3C")
+
+tmap_mode("view")
+# # Create a tm_shape object with the sf dataframe
+# dept_fc_w_geom_2000_tm <- tm_shape(dept_fc_w_geom_2000) +
+#   # Add a choropleth layer with the percentage of forest cover
+#   tm_fill(col = "percent_fc_round", palette = "YlGnBu", title = "% Forest Cover", legend.show = TRUE) +
+# # Set the title and layout options
+# tm_layout(title = "Forest Cover Percentage by Department",
+#           legend.outside = TRUE, # Set the legend outside the map
+#           legend.position = c("right", "top"), # Set the legend position
+#           legend.width = 0.8)# Set the legend width
+
+
+tm_shape(dept_fc_w_geom_2000) +
+  # Set the tile to Esri World Topo Map
+  # Add a choropleth layer with the percentage of forest cover
+  tm_fill(col = "percent_fc_round", palette = "YlGnBu", title = "% Forest Cover", legend.show = TRUE,
+          title.col="Growth rate (%)",
+          id = "nom_dpto.x") +  #sub_id = "nom_dpto.x"
+  # Set the title and layout options
+  tm_layout(title = "2000 Forest Cover Percentage by Department",
+            legend.outside = TRUE, # Set the legend outside the map
+            legend.position = c("right", "top"), # Set the legend position
+            legend.width = 0.8) + # Set the legend width 
+  tm_basemap("Esri.WorldTopoMap") 
+```
+
+```{r}
+# Leaflet map (hover)
+
+
+# Reproject to long-lat CRS (assuming original CRS is in meters)
+dept_fc_w_geom_2000 <- st_transform(dept_fc_w_geom_2000, crs = st_crs(4326)) 
+
+# Set the latitude and longitude for Paraguay
+paraguay_lat <- -23.442503
+paraguay_lon <- -58.443832
+
+# Create the leaflet map
+map <- leaflet(dept_fc_w_geom_2000) %>%
+  addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png") %>%
+  setView(lat = paraguay_lat, lng = paraguay_lon, zoom = 6) %>%  # Set the view to Paraguay
+  addPolygons(fillColor = ~colorNumeric(palette = "YlGnBu", domain = dept_fc_w_geom_2000$percent_fc_round)(percent_fc_round),
+              fillOpacity = 0.7,
+              weight = 1,
+              color = "black",
+              label = ~paste0(dept_fc_w_geom_2000$nom_dpto.x," Forest Cover: ", 
+                              dept_fc_w_geom_2000$percent_fc_round, "%"),
+              labelOptions = labelOptions(noHide = FALSE, textOnly = FALSE)
+              ) %>%
+  addLegend(position = "topright",
+            pal = colorNumeric(palette = "YlGnBu", domain = dept_fc_w_geom_2000$percent_fc_round),
+            values = dept_fc_w_geom_2000$percent_fc_round,
+            title = "% Forest Cover",
+            opacity = 0.7) 
+
+# tiles 
+# https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg
+
+# Display the map
+map
+
+```
+
+```{r include=FALSE, echo=FALSE}
+# Leaflet map (click)
+
+# Create a color palette with 5 colors
+mypal <- colorBin(palette = "YlGnBu", domain = dept_fc_w_geom_2000$percent_fc_round, bins = 2)
+
+# Create a legend with 5 discrete bins and custom labels
+m <- leaflet(dept_fc_w_geom_2000) %>%
+  addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png") %>%
+  setView(lat = paraguay_lat, lng = paraguay_lon, zoom = 6) %>%
+  addPolygons(fillColor = ~colorNumeric(palette = "YlGnBu", domain = dept_fc_w_geom_2000$percent_fc_round)(percent_fc_round),
+              fillOpacity = 0.7,
+              weight = 1,
+              color = "black",
+              popup = paste("<strong>Department: </strong>", dept_fc_w_geom_2000$nom_dpto.x,
+                            "<br><strong>% Forest Cover: </strong>", dept_fc_w_geom_2000$percent_fc_round, "%")) %>%
+  addLegend(position = "topright",
+            pal = colorNumeric(palette = "YlGnBu", domain = dept_fc_w_geom_2000$percent_fc_round),
+            values = dept_fc_w_geom_2000$percent_fc_round,
+            title = "% Forest Cover",
+            opacity = 0.7)
+m
+```
+
+```{r echo=FALSE}
+# # Load the required libraries
+# library(tmap)
+# 
+# # Create a tm_shape object with the sf dataframe
+# dpt_fc_w_geom_2000_tm <- tm_shape(dpt_fc_w_geom_2000_sf) +
+#   # Add a choropleth layer with the percentage of forest cover
+#   tm_fill(col = "percent_fc_round", palette = "YlGnBu", title = "% Forest Cover", legend.show = TRUE) +
+#   # Add tooltip information
+#   tm_tooltip(text = c("District: ", "nom_dpto.x", "<br>Year: ", "year", "<br>Forest Cover Percentage: ", "percent_fc_round", "%"))
+# 
+# # Set the title and layout options
+# tm_layout(title = "Forest Cover Percentage by District",
+#           legend.outside = TRUE, # Set the legend outside the map
+#           legend.position = c("right", "top"), # Set the legend position
+#           legend.width = 0.8) # Set the legend width
+# 
+# # Plot the map
+# tmap_mode("view")
+# #tmap_save(dpt_fc_w_geom_2000_tm, "forest_cover_map.html")
+```
+
+```{r}
+# Leaflet (click) different aesthetics
+# Reproject to long-lat CRS (assuming original CRS is in meters)
+dept_fc_w_geom_2000 <- st_transform(dept_fc_w_geom_2000, crs = st_crs(4326)) 
+
+# Set the latitude and longitude for Paraguay
+paraguay_lat <- -23.442503
+paraguay_lon <- -58.443832
+
+# Create the leaflet map
+map <- leaflet(dept_fc_w_geom_2000) %>%
+  addTiles(urlTemplate = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png") %>%
+  setView(lat = paraguay_lat, lng = paraguay_lon, zoom = 6) %>%  # Set the view to Paraguay
+  addPolygons(fillColor = ~colorNumeric(palette = "Greens", domain = dept_fc_w_geom_2000$percent_fc_round)(percent_fc_round),
+              fillOpacity = 0.7,
+              weight = 1,
+              color = "black",
+              popup = paste("<strong>Department: </strong>", dept_fc_w_geom_2000$nom_dpto.x,
+                            "<br><strong>% Forest Cover: </strong>", dept_fc_w_geom_2000$percent_fc_round, "%")) %>%
+  addLegend(position = "topright",
+            pal = colorNumeric(palette = "Greens", domain = dept_fc_w_geom_2000$percent_fc_round),
+            values = dept_fc_w_geom_2000$percent_fc_round,
+            title = "% Forest Cover",
+            opacity = 0.7)
+
+map
+```
+
+### 2000 Forest Cover Percentage by District
+
+```{r include=FALSE}
+# Data 
+chaco_dists_area <- chaco_districts %>%
+  mutate(dist_tot_area = st_area(geometry),
+         dist_tot_area_calc = dist_tot_area/10000,
+         dist_tot_area_ha = str_remove(dist_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and yearly forest cover 
+dist_fc_w_geom <- dist_fc %>%
+  left_join(chaco_dists_area, by = "nom_dist")
+```
+
+```{r include = FALSE}
+# FC 2000 
+# filter to year of intrest 
+dist_fc_w_geom_2000 <- dist_fc_w_geom[dist_fc_w_geom$year == "2000", ]
+
+
+# Calculate the percentage of forest cover for each year and district
+dist_fc_w_geom_2000 <- dist_fc_w_geom_2000 %>% 
+  mutate(percent_fc = (area_ha/dist_tot_area_ha) * 100,
+         percent_fc_round = round(percent_fc, 2)) %>%
+   st_as_sf()
+
+```
+
+```{r}
+# Reproject to long-lat CRS (assuming original CRS is in meters)
+dist_fc_w_geom_2000 <- st_transform(dist_fc_w_geom_2000, crs = st_crs(4326)) 
+
+# Set the latitude and longitude for Paraguay
+paraguay_lat <- -23.442503
+paraguay_lon <- -58.443832
+
+# Create the leaflet map
+dist_fc_2000_map <- leaflet(dist_fc_w_geom_2000) %>%
+  addTiles(urlTemplate = "https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png") %>%
+  setView(lat = paraguay_lat, lng = paraguay_lon, zoom = 6) %>%  # Set the view to Paraguay
+  addPolygons(fillColor = ~colorNumeric(palette = "YlGnBu", domain = dist_fc_w_geom_2000$percent_fc_round)(percent_fc_round),
+              fillOpacity = 0.7,
+              weight = 1,
+              color = "black",
+              popup = paste("<strong>District: </strong>", dist_fc_w_geom_2000$nom_dist,
+                            "<br><strong>% Forest Cover: </strong>", dist_fc_w_geom_2000$percent_fc_round, "%")) %>%
+  addLegend(position = "topright",
+            pal = colorNumeric(palette = "YlGnBu", domain = dist_fc_w_geom_2000$percent_fc_round),
+            values = dist_fc_w_geom_2000$percent_fc_round,
+            title = "% Forest Cover",
+            opacity = 0.7)
+
+# Display the map
+dist_fc_2000_map
+
+```
+```{r include = FALSE}
+### 2019 - 2020 Forest Loss by Department
+
+# FL 2019 - 2020
+
+# Now make full data w/geometry and forest loss 
+dept_fl_w_geom <- dept_fl %>%
+  left_join(chaco_depts_area, by = "dpto")
+
+# Filter to year of intrest 
+dept_fl_w_geom_19_20 <- dept_fl_w_geom[dept_fl_w_geom$year_range == "2019_2020", ]
+
+# Calculate the percentage of forest cover for each year and district
+dept_fl_w_geom_19_20 <- dept_fl_w_geom_19_20 %>% 
+  mutate(percent_fl = (area_ha/dpt_tot_area_ha) * 100,
+         percent_fl_round = round(percent_fl, 2)) %>%
+   st_as_sf()
+```
+
+```{r include = FALSE}
+ leaflet(dept_fl_w_geom_19_20) %>%
+  addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png") %>%
+  setView(lat = paraguay_lat, lng = paraguay_lon, zoom = 6) %>%
+  addPolygons(fillColor = ~colorNumeric(palette = "YlGnBu", domain = dept_fl_w_geom_19_20$percent_fl_round)(percent_fl_round),
+              fillOpacity = 0.7,
+              weight = 1,
+              color = "black",
+              popup = paste("<strong>Department: </strong>", dept_fl_w_geom_19_20$nom_dpto.x,
+                            "<br><strong>% Forest Cover: </strong>", dept_fl_w_geom_19_20$percent_fl_round, "%")) %>%
+  addLegend(position = "topright",
+            pal = colorNumeric(palette = "YlGnBu", domain = dept_fl_w_geom_19_20$percent_fl_round),
+            values = dept_fl_w_geom_19_20$percent_fl_round,
+            title = "% Forest Cover",
+            opacity = 0.7)
+```
+
