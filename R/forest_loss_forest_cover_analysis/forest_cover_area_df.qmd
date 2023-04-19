@@ -1,0 +1,222 @@
+---
+title: "Forest Cover Area Data Frame "
+format: html
+editor: visual
+---
+
+# Data
+
+```{r}
+library(terra)
+library(sf)
+library(tidyverse)
+library(patchwork)
+```
+
+```{r}
+# Data directory
+datadir <- path.expand("~/../../capstone/pyforest/data")
+
+# Chaco departments (dpt)
+dpts <- st_read(file.path(datadir, "political_boundaries/departamento.shp"))
+chaco_dpts <- dpts %>% filter(dpto %in% c("P", "Q", "R"))
+
+# Chaco districts (dist) 
+districts <- st_read(file.path(datadir, "political_boundaries/distritos.shp"))
+chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R"))
+
+# Chaco forest cover (fc) 
+fc_2000 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_00.tif")) 
+fc_2005 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_05.tif"))
+fc_2011 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_11.tif"))
+fc_2013 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_13.tif"))
+fc_2016 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_16.tif"))
+fc_2017 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_17.tif"))
+fc_2018 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_18.tif"))
+fc_2020 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_20.tif"))
+
+```
+
+```{r}
+# Verfiying extents match 
+st_bbox(chaco_districts) # chaco_districts & chaco_dpts ext match 
+st_bbox(chaco_dpts) # match
+ext(fc_2000) # fc_2000 ext doesn't match chaco_districts & chaco_dpts 
+
+# Matching extents of rasters to the chaco_districts
+fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
+
+for (raster in fc_raster_list) {
+  ext(raster) <- ext(chaco_districts)
+}
+
+ext(fc_2011) # verifying one randomly
+```
+
+# Forest Cover (FC)
+
+## FC Department
+
+```{r}
+# Making a list of forest cover rasters 
+fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
+
+# Create an empty list to store the extracted values for each raster
+fc_output_list <- list()
+
+# Loop to repeat the extract operation for each raster in the raster_list
+for (i in 1:length(fc_raster_list)) {
+  # Dynamically generate the name for the output data frame
+  output_name <- paste0("dpt_fl_", i)
+  
+  # Perform the extract operation on the current raster and store the result in a temporary data frame
+  fc_output_list[[i]] <- as.data.frame(terra::extract(fc_raster_list[[i]], chaco_dpts, fun = sum, na.rm = TRUE, ID = TRUE, touches = TRUE, bind = TRUE))
+  
+  # Assign the temporary data frame to the dynamically generated name
+  assign(output_name, fc_output_list[[i]])
+}
+
+# Checking results 
+#fc_output_list
+
+```
+
+```{r}
+# Creating data frame of FC 
+
+# Results from extracted values
+  #fc_output_list
+
+# Create an empty list to store the results
+fc_dpt_result_list <- list()
+
+# FC raster col names 
+columns <- c("cf_rast_00", "cf_rast_05", "cf_rast_11", "cf_rast_13", "cf_rast_16", "cf_rast_17", "cf_rast_18", "cf_rast_20")
+
+
+# Loop through each data frame and perform the same operations
+for (i in seq_along(fc_output_list)) {
+  fc_dpt_result_list[[i]] <- fc_output_list[[i]] %>%  
+    group_by(dpto, nom_dpto) %>%
+    summarize(cell_count = sum(!!sym(columns[i]), na.rm = TRUE)) %>% 
+    mutate(area_30x30 = cell_count * 30^2,
+           area_ha = area_30x30/ 10000,
+           area_ha_round = round(area_ha, 2))
+}
+
+
+# Assign the results to individual data frames
+dpt_fc_00 <- fc_dpt_result_list[[1]]
+dpt_fc_05 <- fc_dpt_result_list[[2]]
+dpt_fc_11 <- fc_dpt_result_list[[3]]
+dpt_fc_13 <- fc_dpt_result_list[[4]]
+dpt_fc_16 <- fc_dpt_result_list[[5]]
+dpt_fc_17 <- fc_dpt_result_list[[6]]
+dpt_fc_18 <- fc_dpt_result_list[[7]]
+dpt_fc_20 <- fc_dpt_result_list[[8]]
+
+
+# add year range col to each df
+dpt_fc_00 <- dpt_fc_00 %>% mutate(year = "2000")
+dpt_fc_05 <- dpt_fc_05 %>% mutate(year = "2005")
+dpt_fc_11 <- dpt_fc_11 %>% mutate(year = "2011")
+dpt_fc_13 <- dpt_fc_13 %>% mutate(year = "2013")
+dpt_fc_16 <- dpt_fc_16 %>% mutate(year = "2016")
+dpt_fc_17 <- dpt_fc_17 %>% mutate(year = "2017")
+dpt_fc_18 <- dpt_fc_18 %>% mutate(year = "2018")
+dpt_fc_20 <- dpt_fc_20 %>% mutate(year = "2020")
+
+
+# List of data frames to be combined
+department_forest_cover <- bind_rows(dpt_fc_00, dpt_fc_05, dpt_fc_11,dpt_fc_13,
+                                 dpt_fc_16, dpt_fc_17, dpt_fc_18, dpt_fc_20)
+
+# Final data frame 
+department_forest_cover
+```
+
+## FC District
+
+```{r}
+# FC raster list
+fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
+
+# Create an empty list to store the extracted values for each raster
+fc_dist_output_list <- list()
+
+# Loop to repeat the extract operation for each raster in the raster_list
+for (i in 1:length(fc_raster_list)) {
+  # Dynamically generate the name for the output data frame
+  output_name <- paste0("dist_fl_", i)
+  
+  # Perform the extract operation on the current raster and store the result in a temporary data frame
+  fc_dist_output_list[[i]] <- as.data.frame(terra::extract(fc_raster_list[[i]], chaco_districts, fun = sum, na.rm = TRUE, ID = TRUE, touches = TRUE, bind = TRUE))
+  
+  # Assign the temporary data frame to the dynamically generated name
+  assign(output_name, fc_dist_output_list[[i]])
+}
+```
+
+```{r}
+# Making data frame 
+
+# Results from above 
+#fc_dist_output_list
+
+# Create an empty list to store the results
+fc_dist_result_list <- list()
+
+# List of column names
+columns <- c("cf_rast_00", "cf_rast_05", "cf_rast_11", "cf_rast_13", "cf_rast_16", "cf_rast_17", "cf_rast_18", "cf_rast_20")
+
+
+# Loop through the list of objects
+for (i in seq_along(fc_dist_output_list)) {
+  fc_dist_result_list[[i]] <- fc_dist_output_list[[i]] %>%
+    group_by(nom_dist, cod_dpto) %>%
+    summarize(cell_count = sum(!!sym(columns[i]), na.rm = TRUE)) %>%
+    mutate(area_30x30 = cell_count * 30^2,
+           area_ha = area_30x30/ 10000,
+           area_ha_round = round(area_ha, 2))
+}
+
+
+# Assign the results to individual data frames
+dist_fc_00 <- fc_dist_result_list[[1]]
+dist_fc_05 <- fc_dist_result_list[[2]]
+dist_fc_11 <- fc_dist_result_list[[3]]
+dist_fc_13 <- fc_dist_result_list[[4]]
+dist_fc_16 <- fc_dist_result_list[[5]]
+dist_fc_17 <- fc_dist_result_list[[6]]
+dist_fc_18 <- fc_dist_result_list[[7]]
+dist_fc_20 <- fc_dist_result_list[[8]]
+
+# add year range col to each df
+dist_fc_00 <- dist_fc_00 %>% mutate(year = "2000")
+dist_fc_05 <- dist_fc_05 %>% mutate(year = "2005")
+dist_fc_11 <- dist_fc_11 %>% mutate(year = "2011")
+dist_fc_13 <- dist_fc_13 %>% mutate(year = "2013")
+dist_fc_16 <- dist_fc_16 %>% mutate(year = "2016")
+dist_fc_17 <- dist_fc_17 %>% mutate(year = "2017")
+dist_fc_18 <- dist_fc_18 %>% mutate(year = "2018")
+dist_fc_20 <- dist_fc_20 %>% mutate(year = "2020")
+
+
+# List of data frames to be combined
+district_forest_cover <- bind_rows(dist_fc_00, dist_fc_05, dist_fc_11, dist_fc_13, dist_fc_16, dist_fc_17, dist_fc_18, dist_fc_20)
+
+#Final data frame 
+district_forest_cover
+```
+
+## Final df
+
+```{r}
+# Save data frames individually by dpt and dist 
+ 
+# write.csv(department_forest_cover, file = "chaco_dpt_forestcover.csv", row.names = FALSE)
+
+#write.csv(district_forest_cover, file = "chaco_dist_forestcover.csv", row.names = FALSE)
+```
+
+
