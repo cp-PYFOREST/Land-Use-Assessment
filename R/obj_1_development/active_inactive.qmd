@@ -6,16 +6,14 @@ library(tidyverse)
 library(here)
 library(knitr)
 library(units)
+library(tictoc)
 ```
 
 ```{r}
 #| include: false
 #| warning: false
 
-source(knitr::purl(here("R",'src', "boundary_registry_data.qmd")))
-rm(forestry_registry)
-#property_boundaries
-#forestry_registry
+limit <- st_read('/Users/romero61/../../capstone/pyforest/data/permited_land_use/limit/limite_put.shp')
 ```
 
 ```{r}
@@ -25,23 +23,23 @@ rm(forestry_registry)
 
 
 
-properties <- property_boundary |> 
-  select(id, put_id, anho_capa, estado, cod_dpto, cod_dist) |> 
+limit_dup <- limit |> 
+  select(id, put_id, anho_capa, estado, fecha_res,cod_dpto, cod_dist) |> 
   mutate(year_inactive = NA, 
-         to_putid = NA, .before = geometry)
+         to_putid = NA, .before = geom) |> 
+  filter(anho_capa <= 2020)
 
-# find the inactive properties from subset that interesect the larger dataset
-property_intersect <- st_intersection(properties, property_boundary) 
+# find the inactive properties from subset that intersect the larger dataset
+limit_intersect <- st_intersection(limit_dup, limit) 
 
-# Get a sorted list of the unique inactive put_ids
-properties_put_ids <- sort(properties$put_id)
-
+# Get a sorted list of the unique  put_ids
+limit_put_ids <- sort(limit_dup$put_id)
 
 
 # Loop through the inactive put_ids
-for (i in properties_put_ids){
+for (i in limit_put_ids){
   # Filter the intersection dataset to only include rows where the put_id matches the current iteration,and select only the put_id.1, anho_capa, and anho_capa.1 columns (put_id.1 is the ID of the property that this property was merged into, anho_capa is the year this property became inactive, and anho_capa.1 is theyear the property it was merged into became active)
-  temp_df <- property_intersect %>%
+  temp_df <- limit_intersect %>%
     filter(put_id == i) %>%
     select(put_id, put_id.1, anho_capa, anho_capa.1) |>
     # Create a new column to store the percentage of the current property that overlaps with the merged property
@@ -61,7 +59,7 @@ for (i in properties_put_ids){
     # If there's only one row in temp_df, use the current year as the year_inactive for the current property
   if(nrow(temp_df) == 1){
     # if there's only one row, use the current year
-    properties <- properties %>% 
+    limit_dup <- limit_dup %>% 
       mutate(year_inactive = ifelse(put_id == i, 2023, year_inactive),
              to_putid = ifelse(put_id == i, temp_df$put_id.1, to_putid))
   } else {
@@ -72,11 +70,11 @@ for (i in properties_put_ids){
     next_year <- min(temp_df$anho_capa.1[temp_df$anho_capa.1 > current_year])
     if (is.infinite(next_year)) {
       # if there's no next higher year, use 2023
-      properties <- properties %>% 
+      limit_dup <- limit_dup %>% 
         mutate(year_inactive = ifelse(put_id == i & is.na(year_inactive), 2023, year_inactive),
                to_putid = ifelse(put_id == i & is.na(to_putid), temp_df$put_id.1[which(temp_df$anho_capa == current_year)], to_putid))
     } else {
-      properties <- properties %>% 
+      limit_dup <- limit_dup %>% 
         mutate(year_inactive = ifelse(put_id == i & is.na(year_inactive), next_year, year_inactive),
                to_putid = ifelse(put_id == i & is.na(to_putid), temp_df$put_id.1[which(temp_df$anho_capa.1 == next_year)], to_putid))
     }
@@ -90,7 +88,141 @@ for (i in properties_put_ids){
 
 
 
+```{r}
 
+limit_year <- limit_dup |>
+  filter(anho_capa <= 2020 & year_inactive >= 2020) |>
+  mutate(fecha_res = as.Date(fecha_res))
+
+st_write(limit_year,'/Users/romero61/../../capstone/pyforest/data/active_inactive/limit_year/limit_year.shp')
+
+```
+
+```{r}
+limit_year_intersection <- st_intersection(limit_year, limit_dup)
+```
+
+
+```{r}
+lim_put <- lim_put %>%
+  mutate(fecha_res = as.Date(fecha_res))%>%
+  group_by(codigo_put) %>%
+  mutate(duplicate = ifelse(n() == 1, 0, 1)) %>%
+  ungroup() %>%
+  group_by(codigo_put) %>%
+  mutate(ultimo = ifelse(fecha_res == max(fecha_res), 1, 0)) %>%
+  ungroup()%>%
+  mutate(act_2023 = case_when(estado == 0 ~ 0,
+                               estado == 1 & duplicate == 1  &  ultimo ==1 ~ 1,
+                               estado == 1 & duplicate == 0 ~ 1,
+                               TRUE ~ 0))
+```
+
+```{r}
+limit_fecha_res <- limit |>
+  select(put_id, fecha_res, cat) |>
+  st_drop_geometry()
+
+active_inactive <- readRDS('/capstone/pyforest/data/active_inactive/active_inactive.rds')|> 
+  left_join(limit_fecha_res, by= "put_id") |> 
+  filter(anho_capa <= 2020 & year_inactive >= 2020)
+
+
+```
+
+```{r}
+#st_write(active_intersection,'/Users/romero61/../../capstone/pyforest/data/active_inactive/active_inactive_temp/active_inactive_intersection.gpkg')
+```
+
+
+
+```{r}
+find_row_with_putid <- function(putid) {
+  row <- active_inactive[active_inactive$put_id == putid, ]
+  if (nrow(row) == 0) {
+    return(NULL)
+  }
+  return(row)
+}
+```
+
+
+```{r}
+# Vector of all put_ids
+put_ids <- sort(active_inactive$put_id)
+
+# Initialize empty data frames to store rows with the max fecha_res value and removed rows
+max_fecha_res_rows <- data.frame()
+removed_rows <- data.frame()
+tic()
+
+
+for (put_id in put_ids) {
+  current_max_fecha_res <- -Inf
+  current_max_row <- NULL
+  visited_rows <- c()
+  
+  row <- find_row_with_putid(put_id)
+  repeat {
+    if (is.null(row)) {
+      break
+    }
+    
+    if (row$put_id %in% visited_rows) {
+      # Continue iterating through the visited rows to find the max fecha_res value
+      for (visited_put_id in visited_rows) {
+        visited_row <- find_row_with_putid(visited_put_id)
+        if (!is.na(visited_row$fecha_res) &&
+            visited_row$fecha_res > current_max_fecha_res) {
+          current_max_fecha_res <- visited_row$fecha_res
+          current_max_row <- visited_row
+        }
+      }
+      max_fecha_res_rows <- rbind(max_fecha_res_rows, current_max_row)
+      break
+    }
+    
+    visited_rows <- append(visited_rows, row$put_id)
+    
+    if (!is.na(row$fecha_res) &&
+        row$fecha_res > current_max_fecha_res) {
+      current_max_fecha_res <- row$fecha_res
+      current_max_row <- row
+    }
+    
+    to_putid <- row$to_putid
+    if (to_putid == row$put_id) {
+      break
+    }
+    
+    row <- find_row_with_putid(to_putid)
+  }
+  
+  if (!is.null(current_max_row)) {
+    removed_rows <- rbind(removed_rows, active_inactive[active_inactive$put_id %in% visited_rows & active_inactive$put_id != current_max_row$put_id, ])
+    active_inactive <- active_inactive[!active_inactive$put_id %in% visited_rows | active_inactive$put_id == current_max_row$put_id, ]
+  }
+  toc()
+}
+toc()
+
+
+#st_write(active_inactive,'/Users/romero61/../../capstone/pyforest/data/active_inactive/active_inactive_temp/active_inactive1920.gpkg')
+```
+
+
+
+```{r}
+
+clean <-  active_inactive |> 
+  mutate(cat = substr(cat, start = 1, stop = 5)) |> 
+  group_by(cat) %>%
+  arrange(desc(fecha_res)) %>%
+  slice(1) %>%
+  ungroup()
+
+#st_write(clean,'/Users/romero61/../../capstone/pyforest/data/active_inactive/active_inactive_temp/clean1920.gpkg')
+```
 
 ```{r}
 #| include: false
