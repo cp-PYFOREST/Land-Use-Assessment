@@ -8,8 +8,8 @@ PYFOREST
 
 Informing Forest Conservation Regulations in Paraguay
 
-# Compliance-Deforestation-ForestCover(Compliance-DF-FC)
+# Land Use Assessment 
 
 Scripts to process INFONA data. 
 
-Visualizations for land use assessment (compliance), deforestation, and forest cover. 
+Visualizations for land use assessment  of compliance, deforestation, and forest cover. 
