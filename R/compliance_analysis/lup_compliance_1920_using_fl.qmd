@@ -60,7 +60,8 @@ political_boundaries <- district %>%
 
 ```{r}
 # Forest loss --------------------------------------------------------
-fl_19_20 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_20.tif"))
+fl_19_20 <- terra::rast(file.path(datadir, "fl_infona/fl20192020.tif"))
+
 ```
 
 ## Property Limit and Land Use
