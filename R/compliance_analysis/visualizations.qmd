@@ -29,8 +29,8 @@ library(ggiraphExtra)
 
 # Read in processed data 
 ```{r}
-illegal_df_by_dist <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
-authorized_df_by_dist <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
+illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
+authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
 ```
 
 #Visualizations

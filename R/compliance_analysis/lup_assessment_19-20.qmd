@@ -135,7 +135,7 @@ auth_year_group <- as.data.frame(auth_year_touches) |>
 
 ```{r}
 #Save df for easier access
-write_rds(auth_year_group, "/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/auth_year_group_1920_df.rds")
+write_rds(auth_year_group, "~/../../capstone/pyforest/lup_assessment_data/results/auth_year_group_1920_df.rds")
 #auth_year_group <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/auth_year_group_1920_df.rds")
 ```
 
@@ -237,9 +237,9 @@ authorized_df_by_dist <- authorized_df %>%
 
 ```{r}
 #Save df for easier access
-write_rds(illegal_df_by_dist, "/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
-illegal_df_by_dist <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
+write_rds(illegal_df_by_dist, "~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
+illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
 
-write_rds(authorized_df_by_dist, "/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
-authorized_df_by_dist <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
+write_rds(authorized_df_by_dist, "~/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
+authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
 ```
