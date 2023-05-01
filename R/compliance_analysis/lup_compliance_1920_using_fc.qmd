@@ -181,6 +181,12 @@ auth_year_bosques <- auth_year_group %>%
   mutate(df_area_ha = land_use_type_area_ha - fc_area_ha,
     compliance = if_else(df_area_ha > 2 & (land_use_type_area_ha - fc_area_ha) > 0, 0, 1)) 
 
+#guillermo test
+auth_year_bosques <- auth_year_group %>%
+  filter(grepl("bosques", grupo, ignore.case = TRUE)) %>%
+  mutate(df_area_ha = land_use_type_area_ha - fc_area_ha,
+    compliance = if_else(df_area_ha > 2 & (land_use_type_area_ha - fc_area_ha) < 0, 0, 1)) 
+
 # df_area_ha > 2 hectares. 2 hectare tolerance based on INFONA minimum fine 
 # 1 = Compliance (authorized deforestation)
 # 0 = Non-Compliance (unauthorized deforestation)

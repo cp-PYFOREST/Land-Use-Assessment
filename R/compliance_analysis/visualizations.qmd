@@ -1,0 +1,199 @@
+---
+title: "Compliance Visualizations"
+format: html
+editor: visual
+---
+
+```{r}
+# Load packages ---------------------------------------------------------
+library(sf)
+library(tidyverse)
+library(terra) 
+library(tmap)
+library(leaflet)
+library(ggplot2)
+library(exactextractr)
+library(units)
+library(tictoc)
+library(grDevices)
+library(plotly)
+library(forcats)
+library(RColorBrewer)
+library(htmltools) #don't think I am using
+library(maps)
+library(maptools)
+library(sp)
+library(ggiraph)
+library(ggiraphExtra)
+```
+
+# Read in processed data 
+```{r}
+illegal_df_by_dist <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
+authorized_df_by_dist <- read_rds("/Users/acreed/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
+```
+
+#Visualizations
+
+## Authorized Area
+```{r}
+# Remove NAs from authorized_df_by_dist
+#authorized_df_by_dist <- na.omit(authorized_df_by_dist)
+# Transform the data to lat-long
+authorized_df_by_dist <- st_transform(authorized_df_by_dist, crs = "+proj=longlat +datum=WGS84")
+
+# Create a color palette
+my_palette2 <- colorNumeric(palette = "YlGnBu", domain = authorized_df_by_dist$sum_remaining_df_area_ha, n = 4)
+
+# Create the leaflet map
+leaflet(data = authorized_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette2(sum_remaining_df_area_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", authorized_df_by_dist$nom_dist,
+                             " Remaining area authorized to be deforested: ", round(authorized_df_by_dist$sum_remaining_df_area_ha), " ha",
+                             " Area authorized to be deforested: ", round(authorized_df_by_dist$sum_lut_area_ha), " ha")) %>%
+  addLegend(pal = my_palette2, values = authorized_df_by_dist$sum_remaining_df_area_ha,
+            title = "Remaining area authorized to be deforested (ha)",
+            position = "bottomright")
+```
+
+```{r}
+# Create a horizontal bar chart
+ggplot(authorized_df_by_dist, aes(x = sum_remaining_df_area_ha, y = reorder(nom_dist, num_put_id), fill = sum_remaining_df_area_ha)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradientn(colors = brewer.pal(9, "YlGnBu")) +
+  ggtitle("Remaining area authorized to be deforested") +
+  xlab("Remaining area authorized to be deforested (ha)") +
+  ylab("District") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(fill = "Remaining area authorized to be deforested (ha)")
+```
+
+
+```{r}
+# static
+ggplot(authorized_df_by_dist, aes(y = nom_dist, x = sum_lut_area_ha)) +
+  geom_col(aes(fill = "Remaining", x = sum_remaining_df_area_ha)) +
+  geom_col(aes(fill = "Deforested", x = sum_df_ha), position = "stack") +
+  scale_fill_manual(values = c("Remaining" = "#2ca25f", "Deforested" = "#99d8c9"),
+                    guide = guide_legend(title = NULL)) +
+  ggtitle("Authorized Deforestation in each district") +
+  xlab("Area (ha)") +
+  ylab("District") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right")
+
+# interactive
+# Remove NAs from authorized_df_by_dist
+authorized_df_by_dist <- na.omit(authorized_df_by_dist)
+p <- ggplot(authorized_df_by_dist, aes(y = nom_dist, x = sum_lut_area_ha)) +
+  geom_col(aes(fill = "Remaining", x = sum_remaining_df_area_ha)) +
+  geom_col(aes(fill = "Deforested", x = sum_df_ha), position = "stack") +
+  scale_fill_manual(values = c("Remaining" = "#2ca25f", "Deforested" = "#99d8c9"),
+                    guide = guide_legend(title = NULL)) +
+  ggtitle("Authorized Deforestation in each district") +
+  xlab("Area (ha)") +
+  ylab("District") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  scale_x_continuous(labels = scales::comma,breaks = seq(0, max(authorized_df_by_dist$sum_lut_area_ha), 100000))
+
+
+ggplotly(p, tooltip = c("sum_remaining_df_area_ha", "sum_df_ha", "sum_lut_area_ha"))
+```
+
+## Bosques
+```{r}
+# choropleth leaflet map
+# Transform the data to lat-long
+illegal_df_by_dist <- st_transform(illegal_df_by_dist, crs = "+proj=longlat +datum=WGS84")
+
+# Define color palette
+my_palette <- colorNumeric(palette = "YlGnBu", domain = illegal_df_by_dist$sum_df_ha)
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(sum_df_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(pal = my_palette, values = illegal_df_by_dist$sum_df_ha,
+            title = "Illegal Deforestation (hectares)",
+            position = "bottomright")
+
+
+# # Illegal Deforestation Percent
+# my_palette1 <- colorNumeric(palette = "YlGnBu", domain = c(min(na.omit(illegal_df_by_dist$df_percent)), max(na.omit(illegal_df_by_dist$df_percent))))
+# 
+# leaflet(data = illegal_df_by_dist) %>%
+#   addProviderTiles(providers$CartoDB.Positron) %>%
+#   addPolygons(fillColor = ~my_palette1(df_percent),
+#               fillOpacity = 0.8,
+#               color = "#BDBDC3",
+#               weight = 1,
+#               opacity = 1,
+#               highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+#               label = paste0("District: ", illegal_df_by_dist$nom_dist,
+#                              " Illegal Deforestation: ", round(illegal_df_by_dist$df_percent), "%",
+#                              " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+#   addLegend(pal = my_palette1, values = illegal_df_by_dist$df_percent,
+#             title = "Illegal Deforestation Percent",
+#             position = "bottomright")
+```
+
+```{r}
+# Create a horizontal bar chart
+ggplot(illegal_df_by_dist, aes(x = sum_df_ha, y = reorder(nom_dist, num_put_id), fill = sum_df_ha)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradientn(colors = brewer.pal(9, "YlGnBu")) +
+  geom_text(aes(label = paste("Property Count:", num_put_id)), hjust = -0.1, size = 3) +
+  ggtitle("Illegal Deforestation by District") +
+  xlab("Illegal Deforestation (hectares)") +
+  ylab("District") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(fill = "Illegal Deforestation by District")
+```
+
+```{r}
+#interactive
+library(plotly)
+
+p1 <- ggplot(compliance_by_dist, aes(x = avg_compliance, y = nom_dist, fill = avg_compliance)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradientn(colors = brewer.pal(9, "YlOrRd")) +
+  ggtitle("Average Compliance and Property Count by District") +
+  xlab("Average Compliance Percentage") +
+  ylab("District") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(fill = "Average Compliance Percentage")
+
+# Create interactive plotly object
+
+ggplotly(p1, tooltip = c("x")) %>%
+  style(hoverlabel = list(bgcolor = "white"))
+```
+
