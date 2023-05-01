@@ -48,7 +48,6 @@ political_boundaries <- chaco_districts %>%
   mutate(nom_dpto = dept_names[dpto]) %>%
   filter(dpto %in% c("P", "Q", "R"))
 
-
 # INFONA Forest Loss Raster
 fl_19_20 <- terra::rast(file.path(datadir, "data/fl_infona/fl20192020.tif"))
 
@@ -207,20 +206,48 @@ st_crs(political_boundaries)
 political_boundaries <- political_boundaries |>
   mutate(area_ha = area_km2 * 100)
 pb_bosques_illegal_df <- st_join(political_boundaries, auth_year_bosques_geom, join = st_intersects)
+write_rds(pb_bosques_illegal_df, "~/../../capstone/pyforest/lup_assessment_data/results/pb_bosques_illegal_df.rds")
+#pb_bosques_illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
 
 authorized_df <- st_join(political_boundaries, auth_year_authorized_geom, join = st_intersects)
 ```
 
 ## Bosques subset
 ```{r}
+write_rds(illegal_df_by_dist, "~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
+illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
+
 # Group by nom_dist and calculate sum of df_area_ha
 illegal_df_by_dist <- pb_bosques_illegal_df %>%
-  group_by(nom_dist) %>%
+  group_by(nom_dpto, nom_dist) %>%
   summarize(sum_df_ha = sum(df_area_ha),
             avg_df_ha = mean(df_area_ha),
             total_area_ha = mean(area_ha),
             df_percent = (sum_df_ha / total_area_ha) * 100,
             num_put_id = n_distinct(put_id)) 
+
+# Group by nom_dist and calculate sum of df_area_ha
+illegal_df_by_dpto <- pb_bosques_illegal_df %>%
+  group_by(nom_dpto) %>%
+  summarize(sum_df_ha = sum(df_area_ha),
+            avg_df_ha = mean(df_area_ha),
+            total_area_ha = mean(area_ha),
+            df_percent = (sum_df_ha / total_area_ha) * 100,
+            num_put_id = n_distinct(put_id)) 
+
+
+illegal_df <- pb_bosques_illegal_df %>%
+  group_by(nom_dpto, nom_dist) %>%
+  summarize(sum_df_ha_dist = sum(df_area_ha),
+            total_area_ha_dist = mean(area_ha),
+            num_put_id_dist = n_distinct(put_id)) %>%
+  group_by(nom_dpto) %>%
+  mutate(sum_df_ha_dpto = sum(sum_df_ha_dist, na.rm = T),
+         total_area_ha_dpto = mean(total_area_ha_dist, na.rm = T),
+         num_put_id_dpto = sum(num_put_id_dist))
+write_rds(illegal_df, "~/../../capstone/pyforest/lup_assessment_data/results/illegal_df.rds")
+illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df.rds")
+
 ```
 
 ## Area Authorized subset
