@@ -115,13 +115,20 @@ ggplotly(p, tooltip = c("sum_remaining_df_area_ha", "sum_df_ha", "sum_lut_area_h
 ```
 
 ## Bosques
+
+```{r}
+# Define color palette
+my_palette <- colorNumeric(palette = "YlGnBu", domain = illegal_df$sum_df_ha_dist)
+
+```
+
 ```{r}
 # choropleth leaflet map
 # Transform the data to lat-long
 illegal_df_by_dist <- st_transform(illegal_df_by_dist, crs = "+proj=longlat +datum=WGS84")
 
 # Define color palette
-my_palette <- colorNumeric(palette = "YlGnBu", domain = illegal_df_by_dist$sum_df_ha)
+my_palette <- colorNumeric(palette = "RdYlBu", domain = illegal_df_by_dist$sum_df_ha, reverse = TRUE)
 
 # Create leaflet map
 leaflet(data = illegal_df_by_dist) %>%
