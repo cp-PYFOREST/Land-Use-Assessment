@@ -231,6 +231,9 @@ auth_year_authorized_geom <- auth_year_area_authorized %>%
 st_crs(auth_year_bosques_geom)
 st_crs(auth_year_authorized_geom)
 st_crs(political_boundaries)
+
+write_rds(auth_year_authorized_geom, "~/../../capstone/pyforest/lup_assessment_data/results/auth_year_bosques_geom_050323.gpkg")
+
 ```
 
 # Join political boundaries and grupos (bosques/ area_authorized) df

@@ -27,7 +27,8 @@ library(ggiraph)
 library(ggiraphExtra)
 ```
 
-# Read in processed data 
+# Read in processed data
+
 ```{r}
 illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
 authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
@@ -36,6 +37,7 @@ authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data
 #Visualizations
 
 ## Authorized Area
+
 ```{r}
 # Remove NAs from authorized_df_by_dist
 #authorized_df_by_dist <- na.omit(authorized_df_by_dist)
@@ -76,7 +78,6 @@ ggplot(authorized_df_by_dist, aes(x = sum_remaining_df_area_ha, y = reorder(nom_
         legend.position = "right") +
   labs(fill = "Remaining area authorized to be deforested (ha)")
 ```
-
 
 ```{r}
 # static
@@ -128,7 +129,13 @@ my_palette <- colorNumeric(palette = "YlGnBu", domain = illegal_df$sum_df_ha_dis
 illegal_df_by_dist <- st_transform(illegal_df_by_dist, crs = "+proj=longlat +datum=WGS84")
 
 # Define color palette
-my_palette <- colorNumeric(palette = "RdYlBu", domain = illegal_df_by_dist$sum_df_ha, reverse = TRUE)
+my_palette <- colorNumeric(palette = "RdYlBu", domain = illegal_df_by_dist$sum_df_ha)
+
+rev_labels <- function(values) {
+  max_val <- max(values)
+  labels <- round(max_val - values)
+  return(labels)
+}
 
 # Create leaflet map
 leaflet(data = illegal_df_by_dist) %>%
@@ -144,7 +151,8 @@ leaflet(data = illegal_df_by_dist) %>%
                              " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
   addLegend(pal = my_palette, values = illegal_df_by_dist$sum_df_ha,
             title = "Illegal Deforestation (hectares)",
-            position = "bottomright")
+            position = "bottomright",
+            labFormat = labelFormat(transform = rev_labels))
 
 
 # # Illegal Deforestation Percent
@@ -203,4 +211,3 @@ p1 <- ggplot(compliance_by_dist, aes(x = avg_compliance, y = nom_dist, fill = av
 ggplotly(p1, tooltip = c("x")) %>%
   style(hoverlabel = list(bgcolor = "white"))
 ```
-
