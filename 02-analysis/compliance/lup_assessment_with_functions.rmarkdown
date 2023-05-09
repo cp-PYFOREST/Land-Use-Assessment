@@ -1,0 +1,299 @@
+---
+title: "lup assessment with functions"
+format: html
+editor: visual
+---
+
+```{r}
+# Load packages ---------------------------------------------------------
+library(sf)
+library(tidyverse)
+library(terra) 
+library(tmap)
+library(leaflet)
+library(ggplot2)
+library(exactextractr)
+library(units)
+library(tictoc)
+library(grDevices)
+library(plotly)
+library(forcats)
+library(RColorBrewer)
+library(htmltools) #don't think I am using
+library(maps)
+library(maptools)
+library(sp)
+library(ggiraph)
+library(ggiraphExtra)
+```
+
+```{r}
+# Directory
+datadir <- path.expand("~/../../capstone/pyforest")
+```
+
+```{r}
+# Chaco departments (dpt)
+dpts <- st_read(file.path(datadir, "data/political_boundaries/departamento.shp"))
+chaco_dpts <- dpts %>% filter(dpto %in% c("P", "Q", "R"))
+
+# Chaco districts (dist) 
+districts <- st_read(file.path(datadir, "data/political_boundaries/distritos.shp"))
+chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R")) |>
+  rename(dpto = cod_dpto) 
+
+#Political boundaries
+# create a named vector of department names
+dept_names <- c("PDTE. HAYES", "BOQUERON", "ALTO PARAGUAY")
+names(dept_names) <- c("P", "Q", "R") 
+
+# add a new column with the full department names based on the dpto column
+political_boundaries <- chaco_districts %>%
+  mutate(nom_dpto = dept_names[dpto]) %>%
+  filter(dpto %in% c("P", "Q", "R"))
+```
+
+```{r}
+# Functions to load rasters and read vector files
+load_raster <- function(datadir, filepath) {
+  terra::rast(file.path(datadir, filepath))
+}
+
+read_vector <- function(datadir, filepath) {
+  st_read(file.path(datadir, filepath))
+}
+
+# Function to handle spatial data preparation
+prepare_spatial_data <- function(lup, fl, active_limit, year) {
+  lup_proj <- st_transform(lup, crs(fl))
+  lup_active <- lup_proj %>% filter(put_id %in% active_limit$put_id)
+  ext(fl) <- ext(lup_active)
+  
+  list(fl = fl, lup_active = lup_active)
+}
+
+# Load raster and vector files
+fl_files <- list(
+  "data/fl_infona/fl20112013.tif",
+  "data/fl_infona/fl20132015.tif",
+  "data/fl_infona/fl20152017.tif",
+  "data/fl_infona/fl20172018.tif",
+  "data/fl_infona/fl20182019.tif",
+  "data/fl_infona/fl20192020.tif"
+)
+
+active_limit_files <- list(
+  "ml_data/active_inactive_subsets/active_inactive_11.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_12.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_13.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_14.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_15.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_16.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_17.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_18.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_19.gpkg",
+  "ml_data/active_inactive_subsets/active_inactive_20.gpkg"
+)
+
+# Read lup data
+lup <- st_read(file.path(datadir, "data/permited_land_use/lup_gpkg/lup.gpkg"), layer = "lup_cadaster")
+
+# Prepare spatial data
+spatial_data <- lapply(1:length(fl_files), function(i) {
+  fl <- load_raster(datadir, fl_files[[i]])
+  active_limit <- read_vector(datadir, active_limit_files[[i]])
+  prepare_spatial_data(lup, fl, active_limit)
+})
+
+```
+
+```{r}
+# Function to process the data for a given year range
+process_year_range <- function(fl, lup_active) {
+  auth <- terra::extract(fl, lup_active, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+  
+  # Calculate area of land use types (grupos)
+  lup_active$approved_lup_area <- st_area(lup_active)
+  lup_active_valid <- st_make_valid(lup_active)
+  
+  lup_active_grouped <- lup_active_valid %>%
+    group_by(put_id, grupo) %>%
+    summarize(land_use_type_area = sum(approved_lup_area))
+  
+  # Isolate the calculated authorized area for each LUP
+  temp <- lup_active_grouped %>%
+    select(land_use_type_area) %>%
+    mutate(land_use_type_area_ha = land_use_type_area / 10000) %>%
+    st_drop_geometry() %>%
+    drop_units()
+  
+  auth_group <- as.data.frame(auth) %>%
+    group_by(put_id, grupo) %>%
+    summarize(cell_count = sum(periodo_ca)) %>%
+    mutate(df_area_ha = cell_count * 30^2 / 10000) %>%
+    bind_cols(temp)
+  
+  return(auth_group)
+}
+
+# Apply the function to the prepared spatial data
+auth_groups <- lapply(spatial_data, function(data) {
+  process_year_range(data$fl, data$lup_active)
+})
+
+# Extract auth_bosques for each year range
+auth_bosques <- lapply(auth_groups, function(auth_group) {
+  auth_group %>%
+    filter(grepl("bosques", grupo, ignore.case = TRUE)) %>%
+    mutate(actual_lut_area_ha = land_use_type_area_ha - df_area_ha) %>%
+    mutate(df_status = ifelse(df_area_ha <= 2, "no illegal df",
+                              ifelse(df_area_ha > 2, "illegal df", "NA")))
+})
+
+write_rds(auth_bosques,"~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_050723.rds")
+```
+
+```{r}
+# Create an empty list to store the results
+df_summary_list <- list()
+
+for(i in seq_along(auth_bosques)) {
+  # Filter the dataframe in the ith element
+  no_illegal_df_count <- auth_bosques[[i]] %>% filter(df_status == "no illegal df") %>% nrow()
+  illegal_df_count <- auth_bosques[[i]] %>% filter(df_status == "illegal df") %>% nrow()
+  cat("Number of rows with 'no illegal df':", no_illegal_df_count, "\n")
+  cat("Number of rows with 'illegal df':", illegal_df_count, "\n")
+  
+  # Compute summary statistics for the ith element
+  df_summary <- auth_bosques[[i]] %>%
+    group_by(df_status) %>%
+    summarize(count = n()) %>%
+    mutate(percentage = count/sum(count) * 100)
+  
+  # Print the summary statistics for the ith element
+  print(df_summary)
+  
+  # Append the summary statistics to the results list
+  df_summary_list[[i]] <- df_summary
+  
+  # Compute the sum of illegal deforestation in hectares for the ith element
+  sum_illegal_df_ha <- sum(illegal_df_by_dist$sum_df_ha, na.rm = TRUE)
+  cat("Sum of illegal deforestation in hectares:", sum_illegal_df_ha, "\n\n")
+}
+
+```
+
+```{r}
+library(ggplot2)
+
+# Compute the number of rows with "illegal df" status for each time frame
+illegal_df_counts <- lapply(auth_bosques, function(df) {
+  filter(df, df_status == "illegal df") %>% nrow()
+})
+
+# Compute the time frames for each element in the list
+time_frames <- c("2011-2013", "2013-2015", "2015-2017", "2017-2018", "2018-2019", "2019-2020")
+
+# Create a data frame with the counts and time frames
+df <- data.frame(time_frame = time_frames, illegal_df_count = unlist(illegal_df_counts))
+
+# Create a bar plot of the counts
+ggplot(df, aes(x = time_frame, y = illegal_df_count)) +
+  geom_bar(stat = "identity", fill = "darkgreen") +
+  labs(title = "Illegal Deforestation Counts by Time Frame", x = "Time Frame", y = "Illegal Deforestation Count")
+
+```
+
+```{r}
+library(ggplot2)
+
+# Compute the percentage of rows with "illegal df" status for each time frame
+illegal_df_percentages <- lapply(auth_bosques, function(df) {
+  df_summary <- df %>% 
+    group_by(df_status) %>% 
+    summarize(n = n()) %>% 
+    mutate(percentage = n/sum(n) * 100)
+  df_summary$percentage[df_summary$df_status == "no illegal df"] <- 0
+  df_summary$percentage[df_summary$df_status == "illegal df"]
+})
+
+# Create a data frame with the percentages and time frames
+df <- data.frame(time_frame = time_frames, illegal_df_percentage = unlist(illegal_df_percentages))
+
+# Separate the year from the time frame
+df$year <- substr(df$time_frame, 1, 4)
+
+# Create a line plot of the percentages
+ggplot(df, aes(x = year, y = illegal_df_percentage, group = 1)) +
+  geom_line(color = "darkgreen") +
+  geom_point(color = "darkgreen", size = 3) +
+  labs(title = "Change in Illegal Deforestation Percentage Over Time",
+       x = "Year", y = "Illegal Deforestation Percentage")
+
+```
+
+```{r}
+library(ggplot2)
+
+# Compute the sum of illegal deforestation in hectares for each time frame
+illegal_df_ha <- lapply(auth_bosques, function(df) {
+  sum(df$df_area_ha[df$df_status == "illegal df"], na.rm = TRUE)
+})
+
+# Create a data frame with the sums and time frames
+time_frames <- c("2011-2013", "2013-2015", "2015-2017", "2017-2018", "2018-2019", "2019-2020")
+df <- data.frame(time_frame = time_frames, illegal_df_ha = unlist(illegal_df_ha))
+
+# Calculate the number of years for each time frame
+df$num_years <- as.integer(substring(df$time_frame, 6, 7)) - as.integer(substring(df$time_frame, 1, 4)) + 1
+
+# Calculate the midpoint of each time frame for normalizing the x-axis
+df$x <- cumsum(df$num_years) - 0.5 * df$num_years
+
+# Create a line plot of the sums with normalized x-axis
+ggplot(df, aes(x = x, y = illegal_df_ha, group = 1)) +
+  geom_line(color = "darkgreen") +
+  geom_point(color = "darkgreen", size = 3) +
+  scale_x_continuous(breaks = df$x, labels = df$time_frame) +
+  labs(title = "Change in Illegal Deforestation Hectares Over Time",
+       x = "Time Frame", y = "Illegal Deforestation Hectares")
+
+
+```
+
+```{r}
+
+library(ggplot2)
+
+# Compute the sum of illegal deforestation in hectares for each time frame
+illegal_df_ha <- lapply(auth_bosques, function(df) {
+  sum(df$df_area_ha[df$df_status == "illegal df"], na.rm = TRUE)
+})
+
+# Create a data frame with the sums and time frames
+time_frames <- c("2011-2013", "2013-2015", "2015-2017", "2017-2018", "2018-2019", "2019-2020")
+df <- data.frame(time_frame = time_frames, illegal_df_ha = unlist(illegal_df_ha))
+
+# Calculate the number of years for each time frame
+df$num_years <- as.integer(substring(df$time_frame, 6, 7)) - as.integer(substring(df$time_frame, 1, 4)) + 1
+
+# Calculate the midpoint of each time frame for normalizing the x-axis
+df$x <- cumsum(df$num_years) - 0.5 * df$num_years
+
+# Create a line plot of the sums with normalized x-axis
+ggplot(df, aes(x = x, y = illegal_df_ha, group = 1)) +
+  geom_line(color = "darkgreen") +
+  geom_point(color = "darkgreen", size = 3) +
+  scale_x_continuous(breaks = df$x, labels = rev(df$time_frame)) +
+  labs(title = "Change in Illegal Deforestation Hectares Over Time",
+       x = "Time Frame", y = "Illegal Deforestation Hectares")
+
+
+```
+
+```{r}
+political_boundaries <- political_boundaries |>
+  mutate(area_ha = area_km2 * 100)
+pb_bosques_illegal_df <- st_join(political_boundaries, auth_year_bosques_geom, join = st_intersects)
+```
+
