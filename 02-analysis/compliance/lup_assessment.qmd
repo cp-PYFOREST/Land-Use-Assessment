@@ -43,7 +43,7 @@ chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R")) |>
   rename(dpto = cod_dpto) 
 
 #Political boundaries
-# create a named vector of department names
+# create a vector of department names
 dept_names <- c("PDTE. HAYES", "BOQUERON", "ALTO PARAGUAY")
 names(dept_names) <- c("P", "Q", "R") 
 
@@ -113,14 +113,14 @@ lup_20_grouped <- lup_20_valid %>%
 temp <- lup_20_grouped |> 
   select(land_use_type_area) |>
   mutate(land_use_type_area_ha = land_use_type_area / 10000) |>
-  #st_drop_geometry() |>
+  st_drop_geometry() |>
   drop_units()
 
 auth_group_20 <- as.data.frame(auth_19_20) |>
   group_by(put_id, grupo) |>
   summarize(cell_count = sum(periodo_ca)) |>
   mutate(df_area_ha = cell_count * 30^2/ 10000) |>
-   bind_cols(temp) 
+   bind_cols(temp)
 ```
 
 # Land use assessment statistics
@@ -132,18 +132,32 @@ auth_group_20 <- as.data.frame(auth_19_20) |>
 #   mutate(actual_lut_area_ha = land_use_type_area_ha - df_area_ha,
 #          illegal_df = if_else(df_area_ha > 2 & (land_use_type_area - actual_lut_area) > 0, 0, 1))
 
+
+# Filter auth_group_20 to include only "bosques" 
 auth_bosques_19_20 <- auth_group_20 %>%
   filter(grepl("bosques", grupo, ignore.case = TRUE)) %>%
+  # Calculate actual land use type area and df status
   mutate(actual_lut_area_ha = land_use_type_area_ha - df_area_ha) %>%
-  mutate(df_status = ifelse(df_area_ha <=2, "no illegal df",
+  mutate(df_status = ifelse(df_area_ha <= 2, "no illegal df",
                             ifelse(df_area_ha > 2, "illegal df", "NA")))
 
+# Filter lup_20_grouped to include only "bosques"
+lup_20_bosques <- lup_20_grouped %>%
+  filter(grepl("bosques", grupo, ignore.case = TRUE))
 
-write_rds(auth_bosques_19_20, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_050923.gpkg")
+# Join auth_bosques_19_20 with lup_20_bosques based on put_id and add geometry
+auth_bosques_19_20_geom <- auth_bosques_19_20 %>%
+  left_join(lup_20_bosques %>% select(put_id, grupo, geom), by = "put_id") %>%
+  st_set_geometry("geom") %>%  
+  rename(grupo = grupo.x) %>%
+  select(-grupo.y)
 
-no_illegal_df_count <- auth_bosques_19_20 %>% filter(df_status == "no illegal df") %>% nrow()
 
-illegal_df_count <- auth_bosques_19_20 %>% filter(df_status == "illegal df") %>% nrow()
+st_write(auth_bosques_19_20_geom, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_geom_051323.gpkg")
+
+no_illegal_df_count <- auth_bosques_19_20_geom %>% filter(df_status == "no illegal df") %>% nrow()
+
+illegal_df_count <- auth_bosques_19_20_geom %>% filter(df_status == "illegal df") %>% nrow()
 
 cat("Number of rows with 'no illegal df':", no_illegal_df_count, "\n")
 cat("Number of rows with 'illegal df':", illegal_df_count, "\n")
@@ -155,23 +169,6 @@ df_summary <- auth_bosques_19_20 %>%
   mutate(percentage = count/sum(count) * 100)
 
 df_summary
-
-sum_illegal_df_ha <- sum(illegal_df_by_dist$sum_df_ha, na.rm = TRUE)
-sum_illegal_df_ha
-```
-
-```{r}
-lup_active_year_grouped <- lup_active_year_grouped %>% 
-  distinct(put_id, .keep_all = TRUE) %>% 
-  group_by(put_id) %>% 
-  summarise(geom = st_combine(st_make_valid(geom))) %>% 
-  ungroup()
-
-auth_year_bosques_geom <- auth_year_bosques %>% 
-  left_join(lup_active_year_grouped %>% 
-              select(put_id, geom), 
-            by = "put_id") %>% 
-  st_set_geometry("geom")
 ```
 
 #Authorized Area
@@ -182,7 +179,7 @@ auth_year_area_authorized <- auth_year_group %>%
 ```
 
 ```{r}
-lup_active_19_20_grouped <- lup_active_19_20_grouped %>% 
+lup_active_19_20_grouped <- lup_20_grouped %>% 
   distinct(put_id, .keep_all = TRUE) %>% 
   group_by(put_id) %>% 
   summarise(geom = st_combine(st_make_valid(geom))) %>% 
