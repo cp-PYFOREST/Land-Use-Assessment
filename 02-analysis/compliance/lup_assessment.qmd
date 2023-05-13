@@ -113,7 +113,7 @@ lup_20_grouped <- lup_20_valid %>%
 temp <- lup_20_grouped |> 
   select(land_use_type_area) |>
   mutate(land_use_type_area_ha = land_use_type_area / 10000) |>
-  st_drop_geometry() |>
+  #st_drop_geometry() |>
   drop_units()
 
 auth_group_20 <- as.data.frame(auth_19_20) |>
@@ -137,6 +137,9 @@ auth_bosques_19_20 <- auth_group_20 %>%
   mutate(actual_lut_area_ha = land_use_type_area_ha - df_area_ha) %>%
   mutate(df_status = ifelse(df_area_ha <=2, "no illegal df",
                             ifelse(df_area_ha > 2, "illegal df", "NA")))
+
+
+write_rds(auth_bosques_19_20, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_050923.gpkg")
 
 no_illegal_df_count <- auth_bosques_19_20 %>% filter(df_status == "no illegal df") %>% nrow()
 

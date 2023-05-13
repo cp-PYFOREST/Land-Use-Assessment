@@ -52,7 +52,7 @@ political_boundaries <- chaco_districts %>%
 fl_19_20 <- terra::rast(file.path(datadir, "data/fl_infona/fl20192020.tif"))
 
 # Property Limit 
-active_limit <- st_read(file.path(datadir, "lup_compliance_data/active_inactive/active_inactive1920.gpkg"))
+active_limit <- st_read(file.path(datadir, "lup_assessment_data/active_inactive/active_inactive1920.gpkg"))
 
 # Read in land use plan (lup) data w/ land use type (grupos) and reserve/hedgerows/paddocks (categorias) polygons 
 lup <- st_read(file.path(datadir, "data/permited_land_use/lup_gpkg/lup.gpkg"), layer = "lup_cadaster")
