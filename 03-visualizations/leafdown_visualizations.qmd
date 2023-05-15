@@ -1,0 +1,77 @@
+---
+title: "leafdown visualizations"
+format: html
+editor: visual
+---
+
+```{r}
+# Load packages
+library(sf)
+library(tidyverse)
+library(terra) 
+library(tmap)
+library(leaflet.extras)
+library(ggplot2)
+library(exactextractr)
+library(units)
+library(tictoc)
+library(grDevices)
+library(plotly)
+library(forcats)
+library(RColorBrewer)
+library(htmltools) #don't think I am using
+library(maps)
+library(maptools)
+library(sp)
+library(ggiraph)
+library(ggiraphExtra)
+
+#leafdown
+library(leafdown)
+library(leaflet)
+library(shiny)
+library(dplyr)
+library(shinycssloaders)
+library(shinyjs)
+library(dplyr)
+library(raster)
+```
+
+```{r}
+illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist.rds")
+illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
+```
+
+
+```{r}
+# Chaco departments (dpt)
+dpts <- st_read(file.path(datadir, "data/political_boundaries/departamento.shp"))
+chaco_dpts <- dpts %>% filter(dpto %in% c("P", "Q", "R"))
+chaco_dpts <- as(chaco_dpts, "Spatial")
+
+# Chaco districts (dist) 
+districts <- st_read(file.path(datadir, "data/political_boundaries/distritos.shp"))
+chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R")) |>
+  rename(dpto = cod_dpto) 
+chaco_districts <- as(chaco_districts, "Spatial")
+
+pb_list <- list(chaco_dpts, chaco_districts)
+```
+
+```{r}
+my_leafdown <- Leafdown$new(pb_list, map_output_id = "leafdown", input = input)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

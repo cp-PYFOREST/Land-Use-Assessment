@@ -26,7 +26,7 @@ lup <- st_read("~/../../capstone/pyforest/data/permited_land_use/lup_gpkg/lup.gp
 
 # Check CRS
 ```{r}
-st_crs(active_inactive_11_13) 
+st_crs(active_inactive_15_17) 
 # Coordinate Reference System:
 #   User input: WGS 84 / UTM zone 21S 
 #   wkt:

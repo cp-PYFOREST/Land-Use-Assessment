@@ -5,12 +5,13 @@ editor: visual
 ---
 
 ```{r}
-# Load packages ---------------------------------------------------------
+# Load packages
 library(sf)
 library(tidyverse)
 library(terra) 
 library(tmap)
 library(leaflet)
+library(leaflet.extras)
 library(ggplot2)
 library(exactextractr)
 library(units)
@@ -30,11 +31,23 @@ library(ggiraphExtra)
 # Read in processed data
 
 ```{r}
-illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/illegal_df_by_dist.rds")
-authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/results/authorized_df_by_dist.rds")
+illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist.rds")
+illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
+illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df.rds")
+
+authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/authorized_df_by_dist.rds")
 ```
 
-#Visualizations
+# Visualizations
+
+## PYFOREST Palette
+
+```{r}
+pyforest_palette <- c("#4B5F43", "#AEBD93", "#2F4858", "#33658A", "#A7C7D8", "#F6AE2D", "#F26419") 
+#"#2F4858", "#33658A",
+#F8F7F1
+```
+
 
 ## Authorized Area
 
@@ -45,12 +58,14 @@ authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data
 authorized_df_by_dist <- st_transform(authorized_df_by_dist, crs = "+proj=longlat +datum=WGS84")
 
 # Create a color palette
-my_palette2 <- colorNumeric(palette = "YlGnBu", domain = authorized_df_by_dist$sum_remaining_df_area_ha, n = 4)
+#my_palette2 <- colorNumeric(palette = "YlGnBu", domain = authorized_df_by_dist$sum_remaining_df_area_ha, n = 4)
+py_palette <- colorNumeric(palette = pyforest_palette, domain = authorized_df_by_dist$sum_remaining_df_area_ha, n = length(pyforest_palette))
+
 
 # Create the leaflet map
 leaflet(data = authorized_df_by_dist) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
-  addPolygons(fillColor = ~my_palette2(sum_remaining_df_area_ha),
+  addPolygons(fillColor = ~py_palette(sum_remaining_df_area_ha),
               fillOpacity = 0.8,
               color = "#BDBDC3",
               weight = 1,
@@ -59,7 +74,7 @@ leaflet(data = authorized_df_by_dist) %>%
               label = paste0("District: ", authorized_df_by_dist$nom_dist,
                              " Remaining area authorized to be deforested: ", round(authorized_df_by_dist$sum_remaining_df_area_ha), " ha",
                              " Area authorized to be deforested: ", round(authorized_df_by_dist$sum_lut_area_ha), " ha")) %>%
-  addLegend(pal = my_palette2, values = authorized_df_by_dist$sum_remaining_df_area_ha,
+  addLegend(pal = py_palette, values = authorized_df_by_dist$sum_remaining_df_area_ha,
             title = "Remaining area authorized to be deforested (ha)",
             position = "bottomright")
 ```
@@ -68,7 +83,7 @@ leaflet(data = authorized_df_by_dist) %>%
 # Create a horizontal bar chart
 ggplot(authorized_df_by_dist, aes(x = sum_remaining_df_area_ha, y = reorder(nom_dist, num_put_id), fill = sum_remaining_df_area_ha)) +
   geom_bar(stat = "identity") +
-  scale_fill_gradientn(colors = brewer.pal(9, "YlGnBu")) +
+  scale_fill_gradientn(colors = pyforest_palette)) +
   ggtitle("Remaining area authorized to be deforested") +
   xlab("Remaining area authorized to be deforested (ha)") +
   ylab("District") +
@@ -119,7 +134,7 @@ ggplotly(p, tooltip = c("sum_remaining_df_area_ha", "sum_df_ha", "sum_lut_area_h
 
 ```{r}
 # Define color palette
-my_palette <- colorNumeric(palette = "YlGnBu", domain = illegal_df$sum_df_ha_dist)
+#my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df$sum_df_ha_dist, n = length(pyforest_palette))
 
 ```
 
@@ -129,7 +144,195 @@ my_palette <- colorNumeric(palette = "YlGnBu", domain = illegal_df$sum_df_ha_dis
 illegal_df_by_dist <- st_transform(illegal_df_by_dist, crs = "+proj=longlat +datum=WGS84")
 
 # Define color palette
-my_palette <- colorNumeric(palette = "RdYlBu", domain = illegal_df_by_dist$sum_df_ha)
+my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha, n =4)
+#my_palette <- colorNumeric(palette = pyforest_palette, domain = domain, n = 4)
+
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(sum_df_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(pal = my_palette, values = illegal_df_by_dist$sum_df_ha,
+            title = "Illegal Deforestation (hectares)",
+            position = "bottomright")
+```
+
+
+```{r}
+library(leaflet)
+library(leaflet.extras)
+library(RColorBrewer)
+
+# Define the color palette
+pyforest_palette <- c("#4B5F43", "#AEBD93", "#F6AE2D", "#F26419")
+
+# Define the domain for color scaling
+domain <- illegal_df_by_dist$sum_df_ha
+
+# Define the desired breaks for the legend
+breaks <- c(0, 5000, 10000, 15000, 20000)  # Adjust the break values as per your requirement
+
+# Define the desired labels for the legend
+labels <- c("20,000", "15,000", "10,000", "5,000", "0")  # Adjust the labels as desired
+
+# Create the colorNumeric object with manual labels and colors
+my_palette <- colorNumeric(palette = pyforest_palette, domain = domain)
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(sum_df_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(pal = my_palette, values = illegal_df_by_dist$sum_df_ha,
+            title = "Illegal Deforestation (hectares)",
+            position = "bottomright",
+            labels = labels,
+            opacity = 0.8)
+
+```
+
+
+```{r}
+library(leaflet)
+library(leaflet.extras)
+library(RColorBrewer)
+
+# Define the reversed color palette
+pyforest_palette <- rev(c("#F26419", "#F6AE2D", "#AEBD93", "#4B5F43"))
+
+
+#"#A7C7D8", "#33658A", "#2F4858"
+
+# Define the domain for color scaling
+domain <- illegal_df_by_dist$sum_df_ha
+
+# Create the colorNumeric object using pyforest_palette and reversed domain
+my_palette <- colorNumeric(palette = pyforest_palette, domain = domain)
+
+rev_labels <- function(values) {
+  labels <- max(values) - values
+  return(labels)
+}
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(domain),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(position = "bottomright",
+            pal = my_palette,
+            values = domain,
+            title = "Illegal Deforestation (hectares)",
+            labFormat = labelFormat(transform = rev_labels))
+
+```
+
+
+```{r}
+library(leaflet)
+library(htmltools)
+
+# Define the color palette
+pyforest_palette <- c("#4B5F43", "#AEBD93", "#F6AE2D", "#F26419") 
+
+# Define the domain for color scaling
+domain <- illegal_df_by_dist$sum_df_ha
+# Replace non-finite numbers with NA
+domain[!is.finite(domain)] <- NA
+
+
+# Create the colorNumeric object using pyforest_palette and domain
+my_palette <- colorNumeric(palette = pyforest_palette, domain = domain)
+# 
+# Create a vector of breaks for the legend
+breaks <- pretty(domain, n = 6)
+
+# Exclude the maximum value (NA value) from breaks
+breaks <- breaks[breaks != max(breaks, na.rm = TRUE)]
+
+
+# # Define the number of breaks
+# n_breaks <- 6
+# 
+# # Calculate the step size for the breaks, excluding NA values
+# step_size <- (max(domain, na.rm = TRUE) - min(domain, na.rm = TRUE)) / (n_breaks - 1)
+# 
+# # Create the breaks
+# breaks <- seq(min(domain, na.rm = TRUE), max(domain, na.rm = TRUE), by = step_size)
+
+
+# Create a corresponding vector of colors for the legend
+colors <- my_palette(breaks)
+
+# Reverse the breaks and colors for the legend
+breaks_rev <- rev(breaks)
+colors_rev <- rev(colors)
+
+# Create an HTML legend
+legend_html <- paste0(
+  '<div style="padding: 10px; background-color: rgba(255,255,255,0.8);">',
+  '<h4>Illegal Deforestation (hectares)</h4>',
+  paste0(
+    '<div style="display: flex; align-items: center;">',
+    '<div style="background-color: ', colors_rev, '; width: 20px; height: 20px; margin-right: 5px;"></div>',
+    '<div>', breaks_rev, '</div>',
+    '</div>',
+    collapse = ''
+  ),
+  '<div style="display: flex; align-items: center;">',
+  '<div style="background-color: gray; width: 20px; height: 20px; margin-right: 5px;"></div>',
+  '<div>NA</div>',
+  '</div>',
+  '</div>'
+)
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(domain),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addControl(html = legend_html, position = "bottomright")
+
+```
+
+
+
+```{r}
+# choropleth leaflet map
+# Transform the data to lat-long
+illegal_df_by_dist <- st_transform(illegal_df_by_dist, crs = "+proj=longlat +datum=WGS84")
+
+# Define color palette
+my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha)
 
 rev_labels <- function(values) {
   max_val <- max(values)
@@ -172,6 +375,95 @@ leaflet(data = illegal_df_by_dist) %>%
 #   addLegend(pal = my_palette1, values = illegal_df_by_dist$df_percent,
 #             title = "Illegal Deforestation Percent",
 #             position = "bottomright")
+```
+
+
+```{r}
+# Define color palette
+my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha)
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(sum_df_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(pal = my_palette, values = illegal_df_by_dist$sum_df_ha,
+            title = "Illegal Deforestation (hectares)",
+            position = "bottomright")
+
+```
+
+
+```{r}
+# Define color palette
+my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha)
+
+# Create a vector of breaks for the legend
+breaks <- pretty(illegal_df_by_dist$sum_df_ha, n = 10)
+
+# Create a corresponding vector of colors for the legend
+colors <- my_palette(breaks)
+
+# Reverse the breaks and colors for the legend
+breaks_rev <- rev(breaks)
+colors_rev <- rev(colors)
+
+# Create a data frame for the legend
+legend_df <- data.frame(Break = breaks_rev, Color = colors_rev)
+
+# Print the legend data frame
+print(legend_df)
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(sum_df_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(pal = my_palette, values = illegal_df_by_dist$sum_df_ha,
+            title = "Illegal Deforestation (hectares)",
+            position = "bottomright")
+
+```
+
+
+
+```{r}
+# Define color palette for the map
+my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha)
+
+# Define reversed color palette for the legend
+my_palette_rev <- colorNumeric(palette = rev(pyforest_palette), domain = illegal_df_by_dist$sum_df_ha)
+
+# Create leaflet map
+leaflet(data = illegal_df_by_dist) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(fillColor = ~my_palette(sum_df_ha),
+              fillOpacity = 0.8,
+              color = "#BDBDC3",
+              weight = 1,
+              opacity = 1,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label = paste0("District: ", illegal_df_by_dist$nom_dist,
+                             " Illegal Deforestation: ", round(illegal_df_by_dist$sum_df_ha),
+                             " Number of properties: ", illegal_df_by_dist$num_put_id)) %>%
+  addLegend(pal = my_palette_rev, values = illegal_df_by_dist$sum_df_ha,
+            title = "Illegal Deforestation (hectares)",
+            position = "bottomright")
+
 ```
 
 ```{r}
