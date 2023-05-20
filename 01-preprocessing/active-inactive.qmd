@@ -17,7 +17,7 @@ limit <- st_read('~/../../capstone/pyforest/data/permited_land_use/limit/limite_
 limit_dup <- limit |> 
   select(id, put_id, anho_capa, estado, fecha_res,cod_dpto, cod_dist) |> 
   mutate(year_inactive = NA, 
-         to_putid = NA, .before = geom) |> 
+         to_putid = NA, .before = geometry) |> 
   filter(anho_capa <= 2020)
 
 # find the inactive properties from subset that intersect the larger dataset
@@ -89,25 +89,25 @@ limit_fecha_res <- limit |>
 
 active_properties_2011_2013 <- readRDS('/capstone/pyforest/lup_assessment_data/active_inactive/active_inactive.rds') |> 
   left_join(limit_fecha_res, by= "put_id") |> 
-  filter(anho_capa <= 2011 & year_inactive >= 2013)
+  filter(anho_capa <= 2013 & year_inactive >= 2013)
 
 active_properties_2013_2015 <- readRDS('/capstone/pyforest/lup_assessment_data/active_inactive/active_inactive.rds') |> 
   left_join(limit_fecha_res, by= "put_id") |> 
-  filter(anho_capa <= 2013 & year_inactive >= 2015)
+  filter(anho_capa <= 2015 & year_inactive >= 2015)
 
 active_properties_2015_2017 <- readRDS('/capstone/pyforest/lup_assessment_data/active_inactive/active_inactive.rds') |> 
   left_join(limit_fecha_res, by= "put_id") |> 
-  filter(anho_capa <= 2015 & year_inactive >= 2017)
+  filter(anho_capa <= 2017 & year_inactive >= 2017)
 
-active_properties_2018 <- readRDS('/capstone/pyforest/data/active_inactive/active_inactive.rds') |> 
+active_properties_2018 <- readRDS('/capstone/pyforest/lup_assessment_data/active_inactive/active_inactive.rds') |> 
   left_join(limit_fecha_res, by= "put_id") |> 
   filter(anho_capa <= 2018 & year_inactive >= 2018)
 
-active_properties_2019 <- readRDS('/capstone/pyforest/data/active_inactive/active_inactive.rds') |> 
+active_properties_2019 <- readRDS('/capstone/pyforest/lup_assessment_data/active_inactive/active_inactive.rds') |> 
   left_join(limit_fecha_res, by= "put_id") |> 
   filter(anho_capa <= 2019 & year_inactive >= 2019)
 
-active_properties_2020 <- readRDS('/capstone/pyforest/data/active_inactive/active_inactive.rds') |> 
+active_properties_2020 <- readRDS('/capstone/pyforest/lup_assessment_data/active_inactive/active_inactive.rds') |> 
   left_join(limit_fecha_res, by= "put_id") |> 
   filter(anho_capa <= 2020 & year_inactive >= 2020)
 ```

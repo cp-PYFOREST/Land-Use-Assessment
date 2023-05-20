@@ -32,10 +32,12 @@ library(ggiraphExtra)
 
 ```{r}
 illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist.rds")
-illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
-illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df.rds")
 
-authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/authorized_df_by_dist.rds")
+
+# illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist.rds")
+# illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
+# illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df.rds")
+# authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/authorized_df_by_dist.rds")
 ```
 
 # Visualizations
@@ -47,7 +49,6 @@ pyforest_palette <- c("#4B5F43", "#AEBD93", "#2F4858", "#33658A", "#A7C7D8", "#F
 #"#2F4858", "#33658A",
 #F8F7F1
 ```
-
 
 ## Authorized Area
 
@@ -143,6 +144,9 @@ ggplotly(p, tooltip = c("sum_remaining_df_area_ha", "sum_df_ha", "sum_lut_area_h
 # Transform the data to lat-long
 illegal_df_by_dist <- st_transform(illegal_df_by_dist, crs = "+proj=longlat +datum=WGS84")
 
+# Define the color palette
+pyforest_palette <- c("#4B5F43", "#AEBD93", "#F6AE2D", "#F26419")
+
 # Define color palette
 my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha, n =4)
 #my_palette <- colorNumeric(palette = pyforest_palette, domain = domain, n = 4)
@@ -164,7 +168,6 @@ leaflet(data = illegal_df_by_dist) %>%
             title = "Illegal Deforestation (hectares)",
             position = "bottomright")
 ```
-
 
 ```{r}
 library(leaflet)
@@ -205,7 +208,6 @@ leaflet(data = illegal_df_by_dist) %>%
             opacity = 0.8)
 
 ```
-
 
 ```{r}
 library(leaflet)
@@ -248,7 +250,6 @@ leaflet(data = illegal_df_by_dist) %>%
             labFormat = labelFormat(transform = rev_labels))
 
 ```
-
 
 ```{r}
 library(leaflet)
@@ -324,8 +325,6 @@ leaflet(data = illegal_df_by_dist) %>%
 
 ```
 
-
-
 ```{r}
 # choropleth leaflet map
 # Transform the data to lat-long
@@ -377,7 +376,6 @@ leaflet(data = illegal_df_by_dist) %>%
 #             position = "bottomright")
 ```
 
-
 ```{r}
 # Define color palette
 my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha)
@@ -399,7 +397,6 @@ leaflet(data = illegal_df_by_dist) %>%
             position = "bottomright")
 
 ```
-
 
 ```{r}
 # Define color palette
@@ -439,8 +436,6 @@ leaflet(data = illegal_df_by_dist) %>%
 
 ```
 
-
-
 ```{r}
 # Define color palette for the map
 my_palette <- colorNumeric(palette = pyforest_palette, domain = illegal_df_by_dist$sum_df_ha)
@@ -470,7 +465,7 @@ leaflet(data = illegal_df_by_dist) %>%
 # Create a horizontal bar chart
 ggplot(illegal_df_by_dist, aes(x = sum_df_ha, y = reorder(nom_dist, num_put_id), fill = sum_df_ha)) +
   geom_bar(stat = "identity") +
-  scale_fill_gradientn(colors = brewer.pal(9, "YlGnBu")) +
+  scale_fill_gradientn(colors = pyforest_palette) +
   geom_text(aes(label = paste("Property Count:", num_put_id)), hjust = -0.1, size = 3) +
   ggtitle("Illegal Deforestation by District") +
   xlab("Illegal Deforestation (hectares)") +
@@ -486,7 +481,7 @@ ggplot(illegal_df_by_dist, aes(x = sum_df_ha, y = reorder(nom_dist, num_put_id),
 #interactive
 library(plotly)
 
-p1 <- ggplot(compliance_by_dist, aes(x = avg_compliance, y = nom_dist, fill = avg_compliance)) +
+p1 <- ggplot(illegal_by_dist, aes(x = avg_compliance, y = nom_dist, fill = avg_compliance)) +
   geom_bar(stat = "identity") +
   scale_fill_gradientn(colors = brewer.pal(9, "YlOrRd")) +
   ggtitle("Average Compliance and Property Count by District") +
@@ -503,3 +498,86 @@ p1 <- ggplot(compliance_by_dist, aes(x = avg_compliance, y = nom_dist, fill = av
 ggplotly(p1, tooltip = c("x")) %>%
   style(hoverlabel = list(bgcolor = "white"))
 ```
+
+# combined illegal df
+
+```{r}
+library(ggplot2)
+library(ggridges)
+
+combined_illegal_df_by_dist %>%
+  ggplot(aes(x = nom_dist, y = sum_df_ha, fill = year_range)) +
+  geom_col(position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "District", y = "Deforested Area (ha)", fill = "Year Range",
+       title = "Comparison of Deforested Area between Years 11-20")
+
+combined_illegal_df_by_dist %>%
+  ggplot(aes(x = sum_df_ha, y = nom_dist)) +
+  geom_density_ridges(scale = 3, alpha = 0.7, color = "blue") +
+  theme_ridges() +
+  labs(x = "Deforested Area (ha)",
+       y = "District",
+       fill = "Year Range",
+       title = "Comparison of Deforested Area between Years 11-20",
+       subtitle = "Illegal Deforestation Data") +
+  theme(plot.title = element_text(face = "bold", size = 16, margin = margin(b = 10)),
+        plot.subtitle = element_text(size = 12, margin = margin(b = 20)),
+        axis.title = element_text(face = "bold", size = 12),
+        legend.title = element_text(face = "bold", size = 10),
+        legend.text = element_text(size = 8),
+        legend.position = "bottom",
+        legend.box.margin = margin(t = 5))
+
+combined_illegal_df_by_dist %>%
+  ggplot(aes(x = nom_dist, y = sum_df_ha, fill = year_range)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "District",
+       y = "Deforested Area (ha)",
+       fill = "Year Range",
+       title = "Comparison of Deforested Area between Years 11-20") +
+  theme(plot.title = element_text(face = "bold", size = 16, margin = margin(b = 10)),
+        axis.title = element_text(face = "bold", size = 12),
+        legend.title = element_text(face = "bold", size = 10),
+        legend.text = element_text(size = 8),
+        legend.position = "bottom",
+        legend.box.margin = margin(t = 5))
+```
+
+```{r}
+combined_illegal_df_by_dpto %>%
+  ggplot(aes(x = nom_dpto, y = sum_df_ha, fill = year_range)) +
+  geom_col(position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "Department", y = "Deforested Area (ha)", fill = "Year Range",
+       title = "Comparison of Deforested Area between Years 11-20")
+```
+
+```{r}
+ combined_auth_df_by_dpto %>%
+  ggplot(aes(x = nom_dpto, y = sum_df_ha, fill = year_range)) +
+  geom_col(position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "Department", y = "Deforested Area (ha)", fill = "Year Range",
+       title = "Comparison of Deforested Area between Years 11-20")
+```
+
+
+
+
+```{r}
+# Convert year_range to factor or character
+combined_illegal_df_by_dist$year_range <- factor(combined_illegal_df_by_dist$year_range, levels = rev(unique(combined_illegal_df_by_dist$year_range)))
+
+# Plot the data with reversed x-axis labels and values
+ggplot(combined_illegal_df_by_dist, aes(x = year_range, y = sum_df_ha, group = 1)) +
+  geom_area(fill = "#33658A", alpha = 0.3) +
+  geom_point(color = "#33658A", size = 1) +
+  scale_x_discrete(limits = rev(levels(combined_illegal_df_by_dist$year_range)), labels = rev(levels(combined_illegal_df_by_dist$year_range))) +
+  labs(title = "Change in Illegal Deforestation (ha) Over Time",
+       x = "Time Frame", y = "Illegal Deforestation (ha)") +
+  facet_wrap(~ nom_dist, ncol = 2, scales = "free") +
+  theme_minimal()
+```
+

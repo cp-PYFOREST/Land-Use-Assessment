@@ -42,7 +42,6 @@ illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/co
 illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
 ```
 
-
 ```{r}
 # Chaco departments (dpt)
 dpts <- st_read(file.path(datadir, "data/political_boundaries/departamento.shp"))
@@ -61,17 +60,3 @@ pb_list <- list(chaco_dpts, chaco_districts)
 ```{r}
 my_leafdown <- Leafdown$new(pb_list, map_output_id = "leafdown", input = input)
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-

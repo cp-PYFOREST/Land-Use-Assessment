@@ -296,4 +296,3 @@ political_boundaries <- political_boundaries |>
   mutate(area_ha = area_km2 * 100)
 pb_bosques_illegal_df <- st_join(political_boundaries, auth_year_bosques_geom, join = st_intersects)
 ```
-

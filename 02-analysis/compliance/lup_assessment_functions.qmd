@@ -1,0 +1,451 @@
+---
+title: "lup assessment with functions"
+format: html
+editor: visual
+---
+
+# Load packages
+```{r}
+# Load packages 
+library(sf)
+library(tidyverse)
+library(terra) 
+library(tmap)
+library(exactextractr)
+library(units)
+library(tictoc)
+library(grDevices)
+library(forcats)
+library(sp)
+```
+
+# Read in Data
+
+## Directory
+```{r}
+# Directory
+datadir <- path.expand("~/../../capstone/pyforest")
+```
+
+## Political Boundaries
+```{r}
+# Chaco departments (dpt)
+dpts <- st_read(file.path(datadir, "data/political_boundaries/departamento.shp"))
+chaco_dpts <- dpts %>% filter(dpto %in% c("P", "Q", "R"))
+
+# Chaco districts (dist) 
+districts <- st_read(file.path(datadir, "data/political_boundaries/distritos.shp"))
+chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R")) |>
+  rename(dpto = cod_dpto) 
+
+#Political boundaries
+# create a vector of department names
+dept_names <- c("PDTE. HAYES", "BOQUERON", "ALTO PARAGUAY")
+names(dept_names) <- c("P", "Q", "R") 
+
+# add a new column with the full department names based on the dpto column
+political_boundaries <- chaco_districts %>%
+  mutate(nom_dpto = dept_names[dpto]) %>%
+  filter(dpto %in% c("P", "Q", "R")) %>%
+  mutate(area_ha = area_km2 * 100)
+```
+
+## INFONA
+```{r}
+# Forest Loss Raster
+fl_11_13 <- terra::rast(file.path(datadir, "data/fl_infona/fl20112013.tif"))
+fl_13_15 <- terra::rast(file.path(datadir, "data/fl_infona/fl20132015.tif"))
+fl_15_17 <- terra::rast(file.path(datadir, "data/fl_infona/fl20152017.tif"))
+fl_17_18 <- terra::rast(file.path(datadir, "data/fl_infona/fl20172018.tif"))
+fl_18_19 <- terra::rast(file.path(datadir, "data/fl_infona/fl20182019.tif"))
+fl_19_20 <- terra::rast(file.path(datadir, "data/fl_infona/fl20192020.tif"))
+
+# Active Property Limit Vectors
+active_limit_11_13 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_11_13.gpkg"))
+active_limit_13_15 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_13_15.gpkg"))
+active_limit_15_17 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_15_17.gpkg"))
+active_limit_18 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_18.gpkg"))
+active_limit_19 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_19.gpkg"))
+active_limit_20 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_20.gpkg"))
+
+# Read in land use plan (lup) data w/ land use type (grupos) and reserve/hedgerows/paddocks (categorias) polygons 
+#lup <- st_read(file.path(datadir, "data/permited_land_use/lup_gpkg/lup.gpkg"), layer = "lup_cadaster")
+
+# Permitted lup data with the active properties for the year range
+lup_11_13 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_11_13.gpkg"))
+lup_13_15 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_13_15.gpkg"))
+lup_15_17 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_15_17.gpkg"))
+lup_18 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_18.gpkg"))
+lup_19 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_19.gpkg"))
+lup_20 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_20.gpkg"))
+```
+
+# Extract Cell Counts
+```{r}
+tic()
+auth_11_13 <- terra::extract(fl_11_13, lup_11_13, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+auth_13_15 <- terra::extract(fl_13_15, lup_13_15, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+auth_15_17 <- terra::extract(fl_15_17, lup_15_17, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+auth_17_18 <- terra::extract(fl_17_18, lup_18, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+auth_18_19 <- terra::extract(fl_18_19, lup_19, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+auth_19_20 <- terra::extract(fl_19_20, lup_20, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
+toc()
+#~51 min
+
+# write_rds(auth_11_13, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_11_13.rds")
+# write_rds(auth_13_15, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_13_15.rds")
+# write_rds(auth_15_17, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_15_17.rds")
+# write_rds(auth_17_18, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_17_18.rds")
+# write_rds(auth_18_19, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_18_19.rds")
+# write_rds(auth_19_20, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_19_20.rds")
+```
+
+## Bosques (illegal deforestation)
+
+```{r}
+# Function to calculate land use types
+calc_land_use_types <- function(lup, auth, year_range) {
+  
+  # Use st_area to calculate the area of each polygon feature and create a new column called "approved_lup_area"
+  lup$approved_lup_area <- st_area(lup)
+  
+  # Make the geometry of the features valid
+  lup_valid <- st_make_valid(lup)
+  
+  # Group the features and summarize the data
+  lup_grouped <- lup_valid %>%
+    group_by(put_id, grupo) %>%
+    summarize(land_use_type_area = sum(approved_lup_area))
+  
+  # Convert land_use_type_area to hectares
+  temp <- lup_grouped |> 
+    select(land_use_type_area) |>
+    mutate(land_use_type_area_ha = land_use_type_area / 10000) |>
+    st_drop_geometry() |>
+    drop_units()
+  
+  # Calculate df_area
+  auth_group <- as.data.frame(auth) |>
+    group_by(put_id, grupo) |>
+    summarize(cell_count = sum(periodo_ca)) |>
+    mutate(df_area_ha = cell_count * 30^2/ 10000) |>
+    bind_cols(temp)
+  
+  # Filter auth_group to only include "bosques"
+  auth_bosques <- auth_group %>%
+    filter(grepl("bosques", grupo, ignore.case = TRUE)) %>%
+    mutate(actual_lut_area_ha = land_use_type_area_ha - df_area_ha) %>%
+    mutate(df_status = ifelse(df_area_ha <= 2, "no illegal df",
+                              ifelse(df_area_ha > 2, "illegal df", "NA")))
+  
+  # Filter lup_grouped to only include "bosques"
+  lup_bosques <- lup_grouped %>%
+    filter(grepl("bosques", grupo, ignore.case = TRUE))
+  
+  # Join auth_bosques with lup_bosques based on put_id and add geometry
+  auth_bosques_geom <- auth_bosques %>%
+    left_join(lup_bosques %>% select(put_id, grupo, geom), by = "put_id") %>%
+    st_set_geometry("geom") %>%  
+    rename(grupo = grupo.x) %>%
+    select(-grupo.y)
+  
+  return(auth_bosques_geom)
+}
+
+# Apply function to each pair of datasets
+auth_bosques_11_13_geom <- calc_land_use_types(lup_11_13, auth_11_13, "11_13")
+auth_bosques_13_15_geom <- calc_land_use_types(lup_13_15, auth_13_15, "13_15")
+auth_bosques_15_17_geom <- calc_land_use_types(lup_15_17, auth_15_17, "15_17")
+auth_bosques_17_18_geom <- calc_land_use_types(lup_18, auth_17_18, "17_18")
+auth_bosques_18_19_geom <- calc_land_use_types(lup_19, auth_18_19, "18_19")
+auth_bosques_19_20_geom <- calc_land_use_types(lup_20, auth_19_20, "19_20")
+```
+
+
+```{r}
+join_datasets <- function(pb, bosques_geom, year_range) {
+  
+  # Join the datasets
+  pb_bosques_illegal_df <- st_join(pb, bosques_geom, join = st_intersects) 
+  
+  # Remove duplicates based on 'put_id' column
+  pb_bosques_illegal_df <- pb_bosques_illegal_df %>%
+    group_by(put_id) %>%
+    slice(1) %>%
+    ungroup()
+  
+  # Subset dataframe excluding rows with NA in 'df_area_ha' column
+  pb_bosques_illegal_df <- pb_bosques_illegal_df[complete.cases(pb_bosques_illegal_df$df_area_ha), ]
+  
+  return(pb_bosques_illegal_df)
+}
+
+# Apply function to your datasets
+pb_bosques_illegal_df_11_13 <- join_datasets(political_boundaries, auth_bosques_11_13_geom, "11_13")
+pb_bosques_illegal_df_13_15 <- join_datasets(political_boundaries, auth_bosques_13_15_geom, "13_15")
+pb_bosques_illegal_df_15_17 <- join_datasets(political_boundaries, auth_bosques_15_17_geom, "15_17")
+pb_bosques_illegal_df_17_18 <- join_datasets(political_boundaries, auth_bosques_17_18_geom, "17_18")
+pb_bosques_illegal_df_18_19 <- join_datasets(political_boundaries, auth_bosques_18_19_geom, "18_19")
+pb_bosques_illegal_df_19_20 <- join_datasets(political_boundaries, auth_bosques_19_20_geom, "19_20")
+
+```
+
+```{r}
+summarize_df <- function(df, year_range) {
+  
+  illegal_df_by_dist <- df %>%
+    group_by(nom_dpto, nom_dist) %>%
+    summarize(sum_df_ha = sum(df_area_ha),
+              total_area_ha = mean(area_ha),
+              num_put_id = n_distinct(put_id),
+              num_illegal_props = sum(df_status == "illegal df"),
+              percent_illegal_props = (num_illegal_props / n()) * 100) 
+  
+  return(illegal_df_by_dist)
+}
+
+# Apply function to your datasets + add a year_range column 
+illegal_df_by_dist_11_13 <- summarize_df(pb_bosques_illegal_df_11_13, "11_13") %>%
+  mutate(year_range = "11_13")
+illegal_df_by_dist_13_15 <- summarize_df(pb_bosques_illegal_df_13_15, "13_15") %>%
+  mutate(year_range = "13_15")
+illegal_df_by_dist_15_17 <- summarize_df(pb_bosques_illegal_df_15_17, "15_17") %>%
+  mutate(year_range = "15_17")
+illegal_df_by_dist_17_18 <- summarize_df(pb_bosques_illegal_df_17_18, "17_18") %>%
+  mutate(year_range = "17_18")
+illegal_df_by_dist_18_19 <- summarize_df(pb_bosques_illegal_df_18_19, "18_19") %>%
+  mutate(year_range = "18_19")
+illegal_df_by_dist_19_20 <- summarize_df(pb_bosques_illegal_df_19_20, "19_20") %>%
+  mutate(year_range = "19_20")
+
+```
+
+```{r}
+# Combine the data frames
+combined_illegal_df_by_dist <- bind_rows(illegal_df_by_dist_11_13,
+                                         illegal_df_by_dist_13_15,
+                                         illegal_df_by_dist_15_17,
+                                         illegal_df_by_dist_17_18, 
+                                         illegal_df_by_dist_18_19, 
+                                         illegal_df_by_dist_19_20)
+```
+
+
+```{r}
+summarize_df <- function(df, year_range) {
+  
+  illegal_df_by_dpto <- df %>%
+    group_by(nom_dpto) %>%
+    summarize(sum_df_ha = sum(df_area_ha),
+              total_area_ha = mean(area_ha),
+              num_put_id = n_distinct(put_id),
+              num_illegal_props = sum(df_status == "illegal df"),
+              percent_illegal_props = (num_illegal_props / n()) * 100) 
+  # 
+  # # Write to RDS file
+  # write_rds(illegal_df_by_dist, paste0("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist_", year_range, ".rds"))
+  
+  return(illegal_df_by_dpto)
+}
+
+# Apply function to your datasets + add a year_range column 
+illegal_df_by_dpto_11_13 <- summarize_df(pb_bosques_illegal_df_11_13, "11_13") %>%
+  mutate(year_range = "11_13")
+illegal_df_by_dpto_13_15 <- summarize_df(pb_bosques_illegal_df_13_15, "13_15") %>%
+  mutate(year_range = "13_15")
+illegal_df_by_dpto_15_17 <- summarize_df(pb_bosques_illegal_df_15_17, "15_17") %>%
+  mutate(year_range = "15_17")
+illegal_df_by_dpto_17_18 <- summarize_df(pb_bosques_illegal_df_17_18, "17_18") %>%
+  mutate(year_range = "17_18")
+illegal_df_by_dpto_18_19 <- summarize_df(pb_bosques_illegal_df_18_19, "18_19") %>%
+  mutate(year_range = "18_19")
+illegal_df_by_dpto_19_20 <- summarize_df(pb_bosques_illegal_df_19_20, "19_20") %>%
+  mutate(year_range = "19_20")
+
+```
+
+```{r}
+# Combine the data frames
+combined_illegal_df_by_dpto <- bind_rows(illegal_df_by_dpto_11_13,
+                                         illegal_df_by_dpto_13_15,
+                                         illegal_df_by_dpto_15_17,
+                                         illegal_df_by_dpto_17_18, 
+                                         illegal_df_by_dpto_18_19, 
+                                         illegal_df_by_dpto_19_20)
+```
+
+
+## Authorized Area (authorized deforestation)
+
+```{r}
+# Function to calculate land use types
+calc_land_use_types_auth <- function(lup, auth, year_range) {
+  
+  # Use st_area to calculate the area of each polygon feature and create a new column called "approved_lup_area"
+  lup$approved_lup_area <- st_area(lup)
+  
+  # Make the geometry of the features valid
+  lup_valid <- st_make_valid(lup)
+  
+  # Group the features and summarize the data
+  lup_grouped <- lup_valid %>%
+    group_by(put_id, grupo) %>%
+    summarize(land_use_type_area = sum(approved_lup_area))
+  
+  # Convert land_use_type_area to hectares
+  temp <- lup_grouped |> 
+    select(land_use_type_area) |>
+    mutate(land_use_type_area_ha = land_use_type_area / 10000) |>
+    st_drop_geometry() |>
+    drop_units()
+  
+  # Calculate df_area
+  auth_group <- as.data.frame(auth) |>
+    group_by(put_id, grupo) |>
+    summarize(cell_count = sum(periodo_ca)) |>
+    mutate(df_area_ha = cell_count * 30^2/ 10000) |>
+    bind_cols(temp)
+  
+  # Filter auth_group to only include "area authorized"
+  auth_df <- auth_group %>%
+    filter(grepl("AREA_AUTORIZADA", grupo, ignore.case = TRUE)) 
+  
+  # Filter lup_grouped to only include "area authorized"
+  lup_auth_df <- lup_grouped %>%
+    filter(grepl("AREA_AUTORIZADA", grupo, ignore.case = TRUE))
+  
+  # Join auth_bosques with lup_bosques based on put_id and add geometry
+  auth_df_geom <- auth_df %>%
+    left_join(lup_auth_df %>% select(put_id, grupo, geom), by = "put_id") %>%
+    st_set_geometry("geom") %>%  
+    rename(grupo = grupo.x) %>%
+    select(-grupo.y)
+  
+  return(auth_df_geom)
+}
+
+# Apply function to each pair of datasets
+auth_df_11_13_geom <- calc_land_use_types_auth(lup_11_13, auth_11_13, "11_13")
+auth_df_13_15_geom <- calc_land_use_types_auth(lup_13_15, auth_13_15, "13_15") 
+# Warning message:
+# In withCallingHandlers(expr, warning = function(w) if (inherits(w,  :
+#   NAs introduced by coercion
+auth_df_15_17_geom <- calc_land_use_types_auth(lup_15_17, auth_15_17, "15_17")
+auth_df_17_18_geom <- calc_land_use_types_auth(lup_18, auth_17_18, "17_18")
+auth_df_18_19_geom <- calc_land_use_types_auth(lup_19, auth_18_19, "18_19")
+auth_df_19_20_geom <- calc_land_use_types_auth(lup_20, auth_19_20, "19_20")
+```
+
+
+```{r}
+join_datasets_auth <- function(pb, auth_df_geom, year_range) {
+  
+  # Join the datasets
+  pb_auth_df <- st_join(pb, auth_df_geom, join = st_intersects) 
+  
+  # Remove duplicates based on 'put_id' column
+  pb_auth_df <- pb_auth_df %>%
+    group_by(put_id) %>%
+    slice(1) %>%
+    ungroup()
+  
+  # Subset dataframe excluding rows with NA in 'df_area_ha' column
+  pb_auth_df <- pb_auth_df[complete.cases(pb_auth_df$df_area_ha), ]
+  
+  return(pb_auth_df)
+}
+
+# Apply function to your datasets
+pb_auth_df_11_13 <- join_datasets_auth(political_boundaries, auth_df_11_13_geom, "11_13")
+pb_auth_df_13_15 <- join_datasets_auth(political_boundaries, auth_df_13_15_geom, "13_15")
+pb_auth_df_15_17 <- join_datasets_auth(political_boundaries, auth_df_15_17_geom, "15_17")
+pb_auth_df_17_18 <- join_datasets_auth(political_boundaries, auth_df_17_18_geom, "17_18")
+pb_auth_df_18_19 <- join_datasets_auth(political_boundaries, auth_df_18_19_geom, "18_19")
+pb_auth_df_19_20 <- join_datasets_auth(political_boundaries, auth_df_19_20_geom, "19_20")
+
+```
+
+```{r}
+summarize_auth_df <- function(df, year_range) {
+  
+  auth_df_by_dist <- df %>%
+    group_by(nom_dpto, nom_dist) %>%
+    summarize(sum_df_ha = sum(df_area_ha),
+              total_area_ha = mean(area_ha),
+              sum_remaining_df_area_ha = sum(land_use_type_area_ha - df_area_ha),
+              sum_lut_area_ha = sum(land_use_type_area_ha),
+              num_put_id = n_distinct(put_id))
+  
+  return(auth_df_by_dist)
+}
+
+# Apply function to your datasets + add a year_range column 
+auth_df_by_dist_11_13 <- summarize_auth_df(pb_auth_df_11_13, "11_13") %>%
+  mutate(year_range = "11_13")
+auth_df_by_dist_13_15 <- summarize_auth_df(pb_auth_df_13_15, "13_15") %>%
+  mutate(year_range = "13_15")
+auth_df_by_dist_15_17 <- summarize_auth_df(pb_auth_df_15_17, "15_17") %>%
+  mutate(year_range = "15_17")
+auth_df_by_dist_17_18 <- summarize_auth_df(pb_auth_df_17_18, "17_18") %>%
+  mutate(year_range = "17_18")
+auth_df_by_dist_18_19 <- summarize_auth_df(pb_auth_df_18_19, "18_19") %>%
+  mutate(year_range = "18_19")
+auth_df_by_dist_19_20 <- summarize_auth_df(pb_auth_df_19_20, "19_20") %>%
+  mutate(year_range = "19_20")
+```
+
+```{r}
+# Combine the data frames
+combined_auth_df_by_dist <- bind_rows(auth_df_by_dist_11_13,
+                                      auth_df_by_dist_13_15,
+                                      auth_df_by_dist_15_17,
+                                      auth_df_by_dist_17_18, 
+                                      auth_df_by_dist_18_19, 
+                                      auth_df_by_dist_19_20)
+```
+
+
+```{r}
+summarize_auth_df <- function(df, year_range) {
+  
+  auth_df_by_dpto <- df %>%
+    group_by(nom_dpto) %>%
+    summarize(sum_df_ha = sum(df_area_ha),
+              total_area_ha = mean(area_ha),
+              sum_remaining_df_area_ha = sum(land_use_type_area_ha - df_area_ha),
+              sum_lut_area_ha = sum(land_use_type_area_ha),
+              num_put_id = n_distinct(put_id))
+  
+  return(auth_df_by_dpto)
+}
+
+# Apply function to your datasets + add a year_range column 
+auth_df_by_dpto_11_13 <- summarize_auth_df(pb_auth_df_11_13, "11_13") %>%
+  mutate(year_range = "11_13")
+auth_df_by_dpto_13_15 <- summarize_auth_df(pb_auth_df_13_15, "13_15") %>%
+  mutate(year_range = "13_15")
+auth_df_by_dpto_15_17 <- summarize_auth_df(pb_auth_df_15_17, "15_17") %>%
+  mutate(year_range = "15_17")
+auth_df_by_dpto_17_18 <- summarize_auth_df(pb_auth_df_17_18, "17_18") %>%
+  mutate(year_range = "17_18")
+auth_df_by_dpto_18_19 <- summarize_auth_df(pb_auth_df_18_19, "18_19") %>%
+  mutate(year_range = "18_19")
+auth_df_by_dpto_19_20 <- summarize_auth_df(pb_auth_df_19_20, "19_20") %>%
+  mutate(year_range = "19_20")
+
+```
+
+```{r}
+# Combine the data frames
+combined_auth_df_by_dpto <- bind_rows(auth_df_by_dpto_11_13,
+                                         auth_df_by_dpto_13_15,
+                                         auth_df_by_dpto_15_17,
+                                         auth_df_by_dpto_17_18, 
+                                         auth_df_by_dpto_18_19, 
+                                         auth_df_by_dpto_19_20)
+```
+
+
+
+
+
