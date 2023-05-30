@@ -14,32 +14,34 @@ library(patchwork)
 # Data
 
 ```{r}
-# Data Directory
+# Data 
 datadir <- path.expand("~/../../capstone/pyforest/data")
 
-# Chaco 
+chaco <- st_read(file.path(datadir, "study_boundary/study_boundary.shp"))
 dpts <- st_read(file.path(datadir, "political_boundaries/departamento.shp"))
 chaco_dpts <- dpts %>% filter(dpto %in% c("P", "Q", "R"))
-
 districts <- st_read(file.path(datadir, "political_boundaries/distritos.shp"))
 chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R"))
+study_boundary <- st_read(file.path(datadir, "study_boundary/study_boundary.shp"))
 
-# Forest Loss 
-fl_00_05 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20002005.tif"))
-fl_05_11 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20052011.tif"))
-fl_11_13 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20112013.tif"))
-fl_13_15 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20132015.tif"))
-fl_15_17 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20152017.tif"))
-fl_17_18 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20172018.tif"))
-fl_18_19 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20182019.tif"))
-fl_19_20 <- terra::rast(file.path(datadir, "forest_loss/forest_loss_infona/fl/fl20192020.tif"))
+fl_00_05 <- terra::rast(file.path(datadir, "fl_infona/fl20002005.tif"))
+fl_05_11 <- terra::rast(file.path(datadir, "fl_infona/fl20052011.tif"))
+fl_11_13 <- terra::rast(file.path(datadir, "fl_infona/fl20112013.tif"))
+fl_13_15 <- terra::rast(file.path(datadir, "fl_infona/fl20132015.tif"))
+fl_15_17 <- terra::rast(file.path(datadir, "fl_infona/fl20152017.tif"))
+fl_17_18 <- terra::rast(file.path(datadir, "fl_infona/fl20172018.tif"))
+fl_18_19 <- terra::rast(file.path(datadir, "fl_infona/fl20182019.tif"))
+fl_19_20 <- terra::rast(file.path(datadir, "fl_infona/fl20192020.tif"))
 ```
 
 ```{r}
 # Check Extents
-ext(fl_00_05) # extent doesn't match chaco_dist  & chaco_dpts
-st_bbox(chaco_districts) # they match 
-st_bbox(chaco_dpts)
+ext(fl_00_05) # SpatExtent : -81383.7196000004, 484866.2804, 7195682.0484, 7865432.0484 (xmin, xmax, ymin, ymax)
+
+# extent doesn't match chaco_dist  & chaco_dpts
+st_bbox(chaco_districts) # they match  -81999.51 7195669.65  484866.84 7866047.53
+st_bbox(chaco_dpts) #  -81999.51 7195669.65  484866.84 7866047.53 
+st_bbox(chaco) #  -81999.51 7195669.65  484866.84 7866047.53 
 
 ext(fl_00_05) <- ext(chaco_districts) # set extents equal 
 ext(fl_00_05)
@@ -53,11 +55,112 @@ for (raster in raster_list) {
 
 
 # Checking extents updated properly
-ext(fl_15_17)
-ext(fl_19_20)
+ext(fl_15_17) # SpatExtent : -81999.515, 484866.844, 7195669.65, 7866047.528 (xmin, xmax, ymin, ymax)
+ext(fl_19_20) # SpatExtent : -81999.515, 484866.844, 7195669.65, 7866047.528 (xmin, xmax, ymin, ymax)
 ```
 
 # Forest Loss (FL)
+
+#### FL Study Boundary
+
+```{r}
+# Chaco 
+
+raster_list <- list(fl_00_05, fl_05_11, fl_11_13, fl_13_15, fl_15_17, fl_17_18, fl_18_19, fl_19_20)
+
+output_chaco_list <- list()
+
+
+for (i in 1:length(raster_list)) {
+  output_names <- paste0("chaco_fl_", i)
+  
+  output_chaco_list[[i]] <- as.data.frame(terra::extract(raster_list[[i]], 
+                                                         study_boundary, 
+                                                         fun = sum, 
+                                                         na.rm = TRUE, 
+                                                         ID = TRUE,
+                                                         touches = TRUE, 
+                                                         bind = TRUE))
+  assign(output_names, output_chaco_list[[i]])
+}
+```
+
+```{r}
+
+# Departments data frame
+#output_chaco_list
+
+
+# Create an empty list to store the results
+chaco_result_list <- list()
+
+# Loop through each data frame and perform the same operations
+for (i in seq_along(output_chaco_list)) {
+  chaco_result_list[[i]] <- output_chaco_list[[i]] %>%  
+    summarize(cell_count = sum(periodo_ca)) %>% 
+    mutate(fl_area_30x30 = cell_count * 30^2,
+           fl_area_ha = fl_area_30x30/ 10000,
+           fl_area_ha_round = round(fl_area_ha, 2))
+}
+
+# Assign the results to individual data frames
+chaco_fl_00_05 <- chaco_result_list[[1]]
+chaco_fl_05_11 <- chaco_result_list[[2]]
+chaco_fl_11_13 <- chaco_result_list[[3]]
+chaco_fl_13_15 <- chaco_result_list[[4]]
+chaco_fl_15_17 <- chaco_result_list[[5]]
+chaco_fl_17_18 <- chaco_result_list[[6]]
+chaco_fl_18_19 <- chaco_result_list[[7]]
+chaco_fl_19_20 <- chaco_result_list[[8]]
+
+# add year range col to each df 
+chaco_fl_00_05 <- chaco_fl_00_05 %>% mutate(year_range = "2000_2005")
+chaco_fl_05_11 <- chaco_fl_05_11 %>% mutate(year_range = "2005_2011")
+chaco_fl_11_13 <- chaco_fl_11_13 %>% mutate(year_range = "2011_2013")
+chaco_fl_13_15 <- chaco_fl_13_15 %>% mutate(year_range = "2013_2015")
+chaco_fl_15_17 <- chaco_fl_15_17 %>% mutate(year_range = "2015_2017")
+chaco_fl_17_18 <- chaco_fl_17_18 %>% mutate(year_range = "2017_2018")
+chaco_fl_18_19 <- chaco_fl_18_19 %>% mutate(year_range = "2018_2019")
+chaco_fl_19_20 <- chaco_fl_19_20 %>% mutate(year_range = "2019_2020")
+ 
+#List of data frames to be combined
+chaco_forest_loss <- bind_rows(chaco_fl_00_05, chaco_fl_05_11, chaco_fl_11_13, chaco_fl_13_15, chaco_fl_15_17, chaco_fl_17_18, chaco_fl_18_19, chaco_fl_19_20)
+
+# Data frame with area of department forest loss 
+#chaco_forest_loss
+```
+
+```{r}
+# Forest Loss Percent 
+chaco_area <- chaco %>%
+  mutate(chaco_tot_area = st_area(geometry),
+         chaco_tot_area_calc = chaco_tot_area/10000,
+         chaco_tot_area_ha = str_remove(chaco_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Add area to forest loss 
+chaco_geom <- chaco_forest_loss %>%
+  cross_join(chaco_area)
+
+# Caclulating % FL 
+chaco_forest_loss_percent_sf <- chaco_geom %>% 
+  mutate(percent_forest_cover = (fl_area_ha/chaco_tot_area_ha) * 100,
+         percent_forest_cover_round = round(percent_forest_cover, 2)) %>%
+   st_as_sf()
+
+#chaco_forest_loss_percent_sf
+
+# Cleaning data 
+chaco_fl_clean_geom <-
+  chaco_forest_loss_percent_sf %>% 
+  select(-cell_count,  -fl_area_30x30, -chaco_tot_area, -chaco_tot_area_ha, -chaco_tot_area_calc, -percent_forest_cover, -fl_area_ha, -FID) %>%
+  rename(fl_area_ha = fl_area_ha_round,
+         percent_fl = percent_forest_cover_round
+         ) %>%
+  mutate(level = "chaco")
+
+
+chaco_fl_clean_no_geom <- st_drop_geometry(chaco_fl_clean_geom)
+```
 
 #### FL Department
 
@@ -81,6 +184,9 @@ for (i in 1:length(raster_list)) {
   # Assign the temporary data frame to the dynamically generated name
   assign(output_name, output_list[[i]])
 }
+
+# Data frame results in a list
+#output_list
 ```
 
 ```{r}
@@ -95,9 +201,9 @@ for (i in seq_along(dpt_fl_list)) {
   result_list[[i]] <- dpt_fl_list[[i]] %>%  
     group_by(dpto, nom_dpto) %>%
     summarize(cell_count = sum(periodo_ca)) %>% 
-    mutate(area_30x30 = cell_count * 30^2,
-           area_ha = area_30x30/ 10000,
-           area_ha_round = round(area_ha, 2))
+    mutate(fl_area_30x30 = cell_count * 30^2,
+           fl_area_ha = fl_area_30x30/ 10000,
+           fl_area_ha_round = round(fl_area_ha, 2))
 }
 
 # Assign the results to individual data frames
@@ -117,22 +223,63 @@ dpt_fl_11_13 <- dpt_fl_11_13 %>% mutate(year_range = "2011_2013")
 dpt_fl_13_15 <- dpt_fl_13_15 %>% mutate(year_range = "2013_2015")
 dpt_fl_15_17 <- dpt_fl_15_17 %>% mutate(year_range = "2015_2017")
 dpt_fl_17_18 <- dpt_fl_17_18 %>% mutate(year_range = "2017_2018")
-dpt_fl_19_20 <- dpt_fl_19_20 %>% mutate(year_range = "2018_2019")
-dpt_fl_18_19 <- dpt_fl_18_19 %>% mutate(year_range = "2019_2020")
+dpt_fl_18_19 <- dpt_fl_18_19 %>% mutate(year_range = "2018_2019")
+dpt_fl_19_20 <- dpt_fl_19_20 %>% mutate(year_range = "2019_2020")
 
 
 # List of data frames to be combined
 department_forest_loss <- bind_rows(dpt_fl_00_05, dpt_fl_05_11, dpt_fl_11_13, dpt_fl_13_15, dpt_fl_15_17, dpt_fl_17_18, dpt_fl_18_19, dpt_fl_19_20)
+
+# Data frame with area of department forest loss 
+#department_forest_loss
 ```
 
 ```{r}
-# Final df 
-#department_forest_loss
+# Chaco departments forest loss percentage 
+
+# chaco depts total area 
+chaco_depts_area <- chaco_dpts %>%
+  mutate(dpt_tot_area = st_area(geometry),
+         dpt_tot_area_calc = dpt_tot_area/10000,
+         dpt_tot_area_ha = str_remove(dpt_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and forest loss 
+dept_fl_w_geom <- department_forest_loss %>%
+  left_join(chaco_depts_area, by = "dpto")
+
+# Calculate the percentage of forest cover for each year and department
+dpt_forest_loss_sf <- dept_fl_w_geom %>% 
+  mutate(percent_fl = (fl_area_ha/dpt_tot_area_ha) * 100,
+         percent_fl_round = round(percent_fl, 2)) %>%
+   st_as_sf()
+
+# Forest loss percentage by department data frame 
+#dpt_forest_loss_sf
+
+```
+
+```{r}
+# Cleaning data 
+department_fl_clean_geom <-
+  dpt_forest_loss_sf %>% 
+  select(-fl_area_30x30, -dpt_tot_area, -dpt_tot_area_ha, -dpt_tot_area_calc, -percent_fl, -fl_area_ha, -nom_dpto.y, -objectid, -cell_count, -id) %>% ### HERE
+  rename(fl_area_ha = fl_area_ha_round,
+         percent_forest_loss = percent_fl_round,
+         nom_dpto = nom_dpto.x,
+         cod_dpto = dpto
+         ) %>%
+  mutate(level = "department") 
+
+
+department_fl_clean_geom
+
+department_fl_clean_no_geom <- st_drop_geometry(department_fl_clean_geom)
 ```
 
 #### FL Districts
 
 ```{r}
+# Forest Loss by district 
 
 raster_list <- list(fl_00_05, fl_05_11, fl_11_13, fl_13_15, fl_15_17, fl_17_18, fl_18_19, fl_19_20)
 
@@ -151,6 +298,8 @@ for (i in 1:length(raster_list)) {
   assign(output_name, dist_output_list[[i]])
 }
 
+# List of data frames results
+dist_output_list
 ```
 
 ```{r}
@@ -160,14 +309,14 @@ dist_fl_list <- list(dist_fl_1, dist_fl_2, dist_fl_3, dist_fl_4, dist_fl_5, dist
 # Create an empty list to store the results
 dist_result_list <- list()
 
-Loop through each data frame and perform the same operations
+#Loop through each data frame and perform the same operations
 for (i in seq_along(dist_fl_list)) {
   dist_result_list[[i]] <- dist_fl_list[[i]] %>%
     group_by(codigo, nom_dist) %>%
     summarize(cell_count = sum(periodo_ca)) %>%
-    mutate(area_30x30 = cell_count * 30^2,
-           area_ha = area_30x30/ 10000,
-           area_ha_round = round(area_ha, 2))
+    mutate(fl_area_30x30 = cell_count * 30^2,
+           fl_area_ha = fl_area_30x30/ 10000,
+           fl_area_ha_round = round(fl_area_ha, 2))
 }
 
 
@@ -182,54 +331,85 @@ dist_fl_17_18 <- dist_result_list[[6]]
 dist_fl_18_19 <- dist_result_list[[7]]
 dist_fl_19_20 <- dist_result_list[[8]]
 
-# add year range col to each df
+# Add year range col to each df
 dist_fl_00_05 <- dist_fl_00_05 %>% mutate(year_range = "2000_2005")
 dist_fl_05_11 <- dist_fl_05_11 %>% mutate(year_range = "2005_2011")
 dist_fl_11_13 <- dist_fl_11_13 %>% mutate(year_range = "2011_2013")
 dist_fl_13_15 <- dist_fl_13_15 %>% mutate(year_range = "2013_2015")
 dist_fl_15_17 <- dist_fl_15_17 %>% mutate(year_range = "2015_2017")
 dist_fl_17_18 <- dist_fl_17_18 %>% mutate(year_range = "2017_2018")
-dist_fl_19_20 <- dist_fl_19_20 %>% mutate(year_range = "2018_2019")
-dist_fl_18_19 <- dist_fl_18_19 %>% mutate(year_range = "2019_2020")
+dist_fl_18_19 <- dist_fl_18_19 %>% mutate(year_range = "2018_2019")
+dist_fl_19_20 <- dist_fl_19_20 %>% mutate(year_range = "2019_2020")
 
 
 # List of data frames to be combined
 district_forest_loss <- rbind(dist_fl_00_05, dist_fl_05_11, dist_fl_11_13, dist_fl_13_15, dist_fl_15_17, dist_fl_17_18, dist_fl_18_19, dist_fl_19_20)
+
+# Data frame of forest loss area by district 
+district_forest_loss
 ```
 
 ```{r}
-# Final data frame Forest loss by district 
-#district_forest_loss
-```
+# District forest loss percentage data frame
 
-#### Final DF
+# Chaco districts area
+chaco_dists_area <- chaco_districts %>%
+  mutate(dist_tot_area = st_area(geometry),
+         dist_tot_area_calc = dist_tot_area/10000,
+         dist_tot_area_ha = str_remove(dist_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and forest loss years 
+dist_fl_w_geom <- district_forest_loss %>%
+  left_join(chaco_dists_area, by = "nom_dist")
+
+# Calculate the percentage of forest loss for each year and district
+dist_forest_loss_percent_sf <- dist_fl_w_geom %>% 
+  mutate(percent_fl = (fl_area_ha/dist_tot_area_ha) * 100,
+         percent_fl_round = round(percent_fl, 2)) %>%
+   st_as_sf() 
+
+
+# Add department name 
+departments <-
+  chaco_dpts %>%
+  st_drop_geometry() %>% 
+  rename(cod_dpto = dpto)
+
+
+district_forest_loss_percent <- merge(dist_forest_loss_percent_sf, departments, by = "cod_dpto", all.x = TRUE)
+
+# Data frame 
+#district_forest_loss_percent
+```
 
 ```{r}
-# Save data frames individually by dpt and dist 
+# Cleaning data 
+district_fl_clean_geom <-
+  district_forest_loss_percent %>% 
+  select(-fl_area_30x30, -dist_tot_area, -dist_tot_area_ha, -dist_tot_area_calc, -percent_fl, -fl_area_ha, -objectid, -cell_count,-usuario, -codigo.x, -cod_distri, -id.x, -area_km2, -codigo.y, -cod_dist, -zona, -estado, -id.y, -situacion, -fechact) %>%  
+  rename(fl_area_ha = fl_area_ha_round,
+         percent_forest_loss = percent_fl_round) %>%
+  mutate(level = "district") 
 
-# write.csv(department_forest_loss, file = "chaco_dpt_forestloss.csv", row.names = FALSE)
+district_fl_clean_geom
 
-# write.csv(district_forest_loss, file = "chaco_dist_forestloss.csv", row.names = FALSE)
+district_fl_clean_no_geom <- st_drop_geometry(district_fl_clean_geom)
 ```
+
+#### Final Data Frames
 
 ```{r}
-# Save dpt & dist in one (possible option: not tidy) 
+# Chaco forest loss 
+write.csv(chaco_fl_clean_no_geom, "chaco_forest_loss.csv", row.names = FALSE)
+st_write(chaco_fl_clean_geom, "chaco_forest_loss.gpkg")
 
-# Adding cols to dist_fl to match 
 
-# dist_fl
-# dist_fl$dpto <- substring(dist_fl$codigo, 1, 1)
-# dist_fl
-# 
-# dist_fl$nom_dpto <- ifelse(dist_fl$dpto == "P", "PDTE. HAYES",
-#                       ifelse(dist_fl$dpto == "Q", "BOQUERON",
-#                              ifelse(dist_fl$dpto == "R", "ALTO PARAGUAY",
-#                                     "")))
-# 
+# Department forest loss 
+write.csv(department_fl_clean_no_geom, "department_forest_loss.csv", row.names = FALSE)
+st_write(department_fl_clean_geom, "department_forest_loss.gpkg")
 
-# Bind rows
-# forest_loss <- bind_rows(dpt_fl, dist_fl)
 
-#write.csv(forest_loss, file = "chaco_forest_loss.csv", row.names = FALSE)
+# District forest loss 
+write.csv(district_fl_clean_no_geom, "district_forest_loss.csv", row.names = FALSE)
+st_write(district_fl_clean_geom, "district_forest_loss.gpkg")
 ```
-

@@ -5,8 +5,8 @@ editor: visual
 ---
 
 # Data
-
 ```{r}
+# Load libraries
 library(terra)
 library(sf)
 library(tidyverse)
@@ -14,34 +14,34 @@ library(patchwork)
 ```
 
 ```{r}
-# Data directory
+# Data 
 datadir <- path.expand("~/../../capstone/pyforest/data")
 
-# Chaco departments (dpt)
+chaco <- st_read(file.path(datadir, "study_boundary/study_boundary.shp"))
 dpts <- st_read(file.path(datadir, "political_boundaries/departamento.shp"))
 chaco_dpts <- dpts %>% filter(dpto %in% c("P", "Q", "R"))
-
-# Chaco districts (dist) 
 districts <- st_read(file.path(datadir, "political_boundaries/distritos.shp"))
 chaco_districts <- districts %>% filter(cod_dpto %in% c("P", "Q", "R"))
 
-# Chaco forest cover (fc) 
-fc_2000 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_00.tif")) 
-fc_2005 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_05.tif"))
-fc_2011 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_11.tif"))
-fc_2013 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_13.tif"))
-fc_2016 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_16.tif"))
-fc_2017 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_17.tif"))
-fc_2018 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_18.tif"))
-fc_2020 <- terra::rast(file.path(datadir, "fc_rast/cf_rast_current/cf_rast_20.tif"))
-
+fc_2000 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_00.tif")) 
+fc_2005 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_05.tif"))
+fc_2011 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_11.tif"))
+fc_2013 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_13.tif"))
+fc_2016 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_16.tif"))
+fc_2017 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_17.tif"))
+fc_2018 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_18.tif"))
+fc_2020 <- terra::rast(file.path(datadir, "fc_infona/cf_rast_20.tif"))
 ```
 
 ```{r}
 # Verfiying extents match 
-st_bbox(chaco_districts) # chaco_districts & chaco_dpts ext match 
-st_bbox(chaco_dpts) # match
+
+#  xmin ymin xmax ymax 
+st_bbox(chaco_districts) # -81999.51 7195669.65  484866.84 7866047.53 *they match
+st_bbox(chaco_dpts) # -81999.51 7195669.65  484866.84 7866047.53 
+st_bbox(chaco) #  -81999.51 7195669.65  484866.84 7866047.53 
 ext(fc_2000) # fc_2000 ext doesn't match chaco_districts & chaco_dpts 
+# SpatExtent : -81882.4501, 480617.5499, 7202648.134, 7865828.134 (xmin, xmax, ymin, ymax)
 
 # Matching extents of rasters to the chaco_districts
 fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
@@ -50,24 +50,126 @@ for (raster in fc_raster_list) {
   ext(raster) <- ext(chaco_districts)
 }
 
-ext(fc_2011) # verifying one randomly
+# Verifying fc extent match 
+
+ext(fc_2011) # SpatExtent : -81999.515, 484866.844, 7195669.65, 7866047.528 (xmin, xmax, ymin, ymax)
+
+ext(fc_2020) # SpatExtent : -81999.515, 484866.844, 7195669.65, 7866047.528 (xmin, xmax, ymin, ymax)
+
 ```
 
 # Forest Cover (FC)
 
+## FC Chaco
+
+```{r}
+# Chaco Forest Cover Area Ha
+
+# Empty list to store cell count results
+fc_chaco <- list()
+
+for (i in 1:length(fc_raster_list)) {
+  output_name <- paste0("chaco_fc_", i)
+  
+  fc_chaco[[i]] <- as.data.frame(terra::extract(fc_raster_list[[i]], chaco, fun = sum, na.rm = TRUE, ID = TRUE, touches = TRUE, bind = TRUE))
+  
+    assign(output_name, fc_chaco[[i]])
+}
+
+
+# Create an empty list to store the results
+fc_chaco_result_list <- list()
+
+# FC raster col names 
+columns <- c("cf_rast_00", "cf_rast_05", "cf_rast_11", "cf_rast_13", "cf_rast_16", "cf_rast_17", "cf_rast_18", "cf_rast_20")
+
+
+# Loop through each data frame and perform the same operations
+for (i in seq_along(fc_chaco)) {
+  fc_chaco_result_list[[i]] <- fc_chaco[[i]] %>%  
+    summarize(cell_count = sum(!!sym(columns[i]), na.rm = TRUE)) %>% 
+    mutate(fc_area_30x30 = cell_count * 30^2,
+           fc_area_ha = fc_area_30x30/ 10000,
+           fc_area_ha_round = round(fc_area_ha, 2))
+}
+
+
+# Assign the results to individual data frames
+chaco_fc_00 <- fc_chaco_result_list[[1]]
+chaco_fc_05 <- fc_chaco_result_list[[2]]
+chaco_fc_11 <- fc_chaco_result_list[[3]]
+chaco_fc_13 <- fc_chaco_result_list[[4]]
+chaco_fc_16 <- fc_chaco_result_list[[5]]
+chaco_fc_17 <- fc_chaco_result_list[[6]]
+chaco_fc_18 <- fc_chaco_result_list[[7]]
+chaco_fc_20 <- fc_chaco_result_list[[8]]
+
+
+# Add year range col to each df
+chaco_fc_00 <- chaco_fc_00 %>% mutate(year = "2000")
+chaco_fc_05 <- chaco_fc_05 %>% mutate(year = "2005")
+chaco_fc_11 <- chaco_fc_11 %>% mutate(year = "2011")
+chaco_fc_13 <- chaco_fc_13 %>% mutate(year = "2013")
+chaco_fc_16 <- chaco_fc_16 %>% mutate(year = "2016")
+chaco_fc_17 <- chaco_fc_17 %>% mutate(year = "2017")
+chaco_fc_18 <- chaco_fc_18 %>% mutate(year = "2018")
+chaco_fc_20 <- chaco_fc_20 %>% mutate(year = "2020")
+
+
+# List of data frames to be combined
+chaco_forest_cover <- bind_rows(chaco_fc_00, chaco_fc_05, chaco_fc_11,chaco_fc_13,
+                                 chaco_fc_16, chaco_fc_17, chaco_fc_18, chaco_fc_20)
+
+# Data frame with forest cover areas 
+chaco_forest_cover
+```
+
+```{r}
+# Forest Cover percentage Chaco
+
+# Chaco area
+chaco_depts_area <- chaco %>%
+  mutate(chaco_tot_area = st_area(geometry),
+         chaco_tot_area_calc = chaco_tot_area/10000,
+         chaco_tot_area_ha = str_remove(chaco_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and yearly forest cover 
+chaco_forest_cover_w_geom <- chaco_forest_cover %>%
+  cross_join(chaco_depts_area)
+
+# Calculate the percentage of forest cover for each year and deparment
+chaco_forest_cover_percent_sf <- chaco_forest_cover_w_geom %>% 
+  mutate(percent_forest_cover = (fc_area_ha/chaco_tot_area_ha) * 100,
+         percent_forest_cover_round = round(percent_forest_cover, 2)) %>%
+   st_as_sf()
+
+# Percentage forest cover by department w/geometry 
+chaco_forest_cover_percent_sf
+
+
+# Cleaning final chaco forest cover data
+chaco_fc_clean_geom <-
+  chaco_forest_cover_percent_sf %>% 
+  select(-cell_count,  -fc_area_30x30, -chaco_tot_area, -chaco_tot_area_ha, -chaco_tot_area_calc, -percent_forest_cover, -fc_area_ha, -FID) %>%
+  rename(fc_area_ha = fc_area_ha_round,
+         percent_fc = percent_forest_cover_round
+         ) %>%
+  mutate(level = "chaco")
+
+
+chaco_fc_clean_no_geom <- st_drop_geometry(chaco_fc_clean_geom)
+```
+
 ## FC Department
 
 ```{r}
-# Making a list of forest cover rasters 
-fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
-
 # Create an empty list to store the extracted values for each raster
 fc_output_list <- list()
 
 # Loop to repeat the extract operation for each raster in the raster_list
 for (i in 1:length(fc_raster_list)) {
   # Dynamically generate the name for the output data frame
-  output_name <- paste0("dpt_fl_", i)
+  output_name <- paste0("dpt_fc_", i)
   
   # Perform the extract operation on the current raster and store the result in a temporary data frame
   fc_output_list[[i]] <- as.data.frame(terra::extract(fc_raster_list[[i]], chaco_dpts, fun = sum, na.rm = TRUE, ID = TRUE, touches = TRUE, bind = TRUE))
@@ -77,7 +179,7 @@ for (i in 1:length(fc_raster_list)) {
 }
 
 # Checking results 
-#fc_output_list
+fc_output_list # data frames list 
 
 ```
 
@@ -99,9 +201,9 @@ for (i in seq_along(fc_output_list)) {
   fc_dpt_result_list[[i]] <- fc_output_list[[i]] %>%  
     group_by(dpto, nom_dpto) %>%
     summarize(cell_count = sum(!!sym(columns[i]), na.rm = TRUE)) %>% 
-    mutate(area_30x30 = cell_count * 30^2,
-           area_ha = area_30x30/ 10000,
-           area_ha_round = round(area_ha, 2))
+    mutate(fc_area_30x30 = cell_count * 30^2,
+           fc_area_ha = fc_area_30x30/ 10000,
+           fc_area_ha_round = round(fc_area_ha, 2))
 }
 
 
@@ -131,15 +233,51 @@ dpt_fc_20 <- dpt_fc_20 %>% mutate(year = "2020")
 department_forest_cover <- bind_rows(dpt_fc_00, dpt_fc_05, dpt_fc_11,dpt_fc_13,
                                  dpt_fc_16, dpt_fc_17, dpt_fc_18, dpt_fc_20)
 
-# Final data frame 
+# Data frame with forest cover areas 
 department_forest_cover
+```
+
+```{r}
+# Forest Cover percentage by department
+
+# Departments area
+chaco_depts_area <- chaco_dpts %>%
+  mutate(dpt_tot_area = st_area(geometry),
+         dpt_tot_area_calc = dpt_tot_area/10000,
+         dpt_tot_area_ha = str_remove(dpt_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and yearly forest cover 
+dept_forest_cover_w_geom <- department_forest_cover %>%
+  left_join(chaco_depts_area, by = "dpto")
+
+# Calculate the percentage of forest cover for each year and deparment
+dept_forest_cover_percent_sf <- dept_forest_cover_w_geom %>% 
+  mutate(percent_forest_cover = (fc_area_ha/dpt_tot_area_ha) * 100,
+         percent_forest_cover_round = round(percent_forest_cover, 2)) %>%
+   st_as_sf()
+
+# Percentage forest cover by department w/geometry 
+dept_forest_cover_percent_sf
+
+
+dept_fc_clean_geom <-
+  dept_forest_cover_percent_sf %>% 
+  select(-cell_count, -objectid, -nom_dpto.y, -id, -fc_area_30x30, -dpt_tot_area, -dpt_tot_area_ha, -dpt_tot_area_calc, -percent_forest_cover, -fc_area_ha) %>%
+  rename(fc_area_ha = fc_area_ha_round,
+         nom_dpto = nom_dpto.x,
+         percent_fc = percent_forest_cover_round,
+         cod_dpto = dpto) %>%
+  mutate(level = "department")
+
+
+dept_fc_clean_no_geom <- st_drop_geometry(dept_fc_clean_geom)
 ```
 
 ## FC District
 
 ```{r}
 # FC raster list
-fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
+# fc_raster_list <- list(fc_2000, fc_2005, fc_2011, fc_2013, fc_2016, fc_2017, fc_2018, fc_2020)
 
 # Create an empty list to store the extracted values for each raster
 fc_dist_output_list <- list()
@@ -147,7 +285,7 @@ fc_dist_output_list <- list()
 # Loop to repeat the extract operation for each raster in the raster_list
 for (i in 1:length(fc_raster_list)) {
   # Dynamically generate the name for the output data frame
-  output_name <- paste0("dist_fl_", i)
+  output_name <- paste0("dist_fc_", i)
   
   # Perform the extract operation on the current raster and store the result in a temporary data frame
   fc_dist_output_list[[i]] <- as.data.frame(terra::extract(fc_raster_list[[i]], chaco_districts, fun = sum, na.rm = TRUE, ID = TRUE, touches = TRUE, bind = TRUE))
@@ -158,10 +296,8 @@ for (i in 1:length(fc_raster_list)) {
 ```
 
 ```{r}
-# Making data frame 
-
 # Results from above 
-#fc_dist_output_list
+# fc_dist_output_list
 
 # Create an empty list to store the results
 fc_dist_result_list <- list()
@@ -175,9 +311,9 @@ for (i in seq_along(fc_dist_output_list)) {
   fc_dist_result_list[[i]] <- fc_dist_output_list[[i]] %>%
     group_by(nom_dist, cod_dpto) %>%
     summarize(cell_count = sum(!!sym(columns[i]), na.rm = TRUE)) %>%
-    mutate(area_30x30 = cell_count * 30^2,
-           area_ha = area_30x30/ 10000,
-           area_ha_round = round(area_ha, 2))
+    mutate(fc_area_30x30 = cell_count * 30^2,
+           fc_area_ha = fc_area_30x30/ 10000,
+           fc_area_ha_round = round(fc_area_ha, 2))
 }
 
 
@@ -205,18 +341,71 @@ dist_fc_20 <- dist_fc_20 %>% mutate(year = "2020")
 # List of data frames to be combined
 district_forest_cover <- bind_rows(dist_fc_00, dist_fc_05, dist_fc_11, dist_fc_13, dist_fc_16, dist_fc_17, dist_fc_18, dist_fc_20)
 
-#Final data frame 
+# District forest cover area  data frame 
 district_forest_cover
 ```
 
-## Final df
-
 ```{r}
-# Save data frames individually by dpt and dist 
- 
-# write.csv(department_forest_cover, file = "chaco_dpt_forestcover.csv", row.names = FALSE)
+# District forest cover percentage 
 
-#write.csv(district_forest_cover, file = "chaco_dist_forestcover.csv", row.names = FALSE)
+# Chaco districts area
+chaco_dists_area <- chaco_districts %>%
+  mutate(dist_tot_area = st_area(geometry),
+         dist_tot_area_calc = dist_tot_area/10000,
+         dist_tot_area_ha = str_remove(dist_tot_area_calc, "\\s*\\[m\\^2\\]") %>% as.numeric())
+
+# Now make full data w/geometry and yearly forest cover 
+dist_fc_w_geom <- district_forest_cover %>%
+  left_join(chaco_dists_area, by = "nom_dist")
+
+# Calculate the percentage of forest cover for each year and district
+dist_forest_cover_percent_sf <- dist_fc_w_geom %>% 
+  mutate(percent_fc = (fc_area_ha/dist_tot_area_ha) * 100,
+         percent_fc_round = round(percent_fc, 2)) %>%
+   st_as_sf()
+
+# Percentage forest cover by district w/geometry 
+dist_forest_cover_percent_sf
+
+# Clean data frame
+
+# Districts with geometry 
+dist_fc_w_geom_clean <- dist_forest_cover_percent_sf %>%
+  select(-cod_distri, -area_km2, -codigo, -zona, -estado, -situacion, -fechact, -usuario, -cod_dist, -id, -cod_dist, -usuario, -percent_fc, -dist_tot_area_calc, -dist_tot_area_ha, -cell_count, -cod_dpto.x, -fc_area_30x30, -fc_area_ha, -dist_tot_area) %>%
+  rename (cod_dpto = cod_dpto.y, percent_fc = percent_fc_round, fc_area_ha = fc_area_ha_round) %>%
+  mutate(level = "district")
+
+# Add department name to data 
+departments <-
+  chaco_dpts %>%
+  st_drop_geometry() %>% 
+  rename(cod_dpto = dpto)
+
+dist_fc_w_geom_clean <- merge(dist_fc_w_geom_clean, 
+                              departments, by = "cod_dpto", all.x = TRUE)
+
+dist_fc_w_geom_clean <- 
+  dist_fc_w_geom_clean %>% 
+  select(-id, -objectid)
+
+
+# Districts with out geometry 
+dist_fc_no_geom <- st_drop_geometry(dist_fc_w_geom_clean)
 ```
 
+## Final Data Frames
 
+```{r}
+# Chaco forest cover 
+write.csv(chaco_fc_clean_no_geom, "chaco_forest_cover.csv", row.names = FALSE)
+st_write(chaco_fc_clean_geom, "chaco_forest_cover.gpkg")
+
+
+# Department forest cover 
+write.csv(dept_fc_clean_no_geom, "department_forest_cover.csv", row.names = FALSE)
+st_write(dept_fc_clean_geom, "department_forest_cover.gpkg")
+
+# District forest cover 
+write.csv(dist_fc_no_geom, "district_forest_cover.csv", row.names = FALSE)
+st_write(dist_fc_w_geom_clean, "district_forest_cover.gpkg")
+```
