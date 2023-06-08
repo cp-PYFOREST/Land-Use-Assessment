@@ -31,13 +31,10 @@ library(ggiraphExtra)
 # Read in processed data
 
 ```{r}
-illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist.rds")
-
-
-# illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist.rds")
-# illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
-# illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df.rds")
-# authorized_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/authorized_df_by_dist.rds")
+combined_illegal_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_illegal_df_by_dist.rds")
+combined_illegal_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_illegal_df_by_dpto.rds")
+combined_auth_df_by_dist <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_auth_df_by_dist.rds")
+combined_auth_df_by_dpto <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_auth_df_by_dpto.rds")
 ```
 
 # Visualizations
@@ -84,7 +81,7 @@ leaflet(data = authorized_df_by_dist) %>%
 # Create a horizontal bar chart
 ggplot(authorized_df_by_dist, aes(x = sum_remaining_df_area_ha, y = reorder(nom_dist, num_put_id), fill = sum_remaining_df_area_ha)) +
   geom_bar(stat = "identity") +
-  scale_fill_gradientn(colors = pyforest_palette)) +
+  scale_fill_gradientn(colors = pyforest_palette) +
   ggtitle("Remaining area authorized to be deforested") +
   xlab("Remaining area authorized to be deforested (ha)") +
   ylab("District") +
@@ -481,17 +478,18 @@ ggplot(illegal_df_by_dist, aes(x = sum_df_ha, y = reorder(nom_dist, num_put_id),
 #interactive
 library(plotly)
 
-p1 <- ggplot(illegal_by_dist, aes(x = avg_compliance, y = nom_dist, fill = avg_compliance)) +
+p1 <- ggplot(illegal_df_by_dist, aes(x = sum_df_ha, y = reorder(nom_dist, num_put_id), fill = sum_df_ha)) +
   geom_bar(stat = "identity") +
-  scale_fill_gradientn(colors = brewer.pal(9, "YlOrRd")) +
-  ggtitle("Average Compliance and Property Count by District") +
-  xlab("Average Compliance Percentage") +
+  scale_fill_gradientn(colors = pyforest_palette) +
+  geom_text(aes(label = paste("Property Count:", num_put_id)), hjust = -0.1, size = 3) +
+  ggtitle("Illegal Deforestation by District") +
+  xlab("Illegal Deforestation (hectares)") +
   ylab("District") +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         legend.position = "right") +
-  labs(fill = "Average Compliance Percentage")
+  labs(fill = "Illegal Deforestation by District")
 
 # Create interactive plotly object
 

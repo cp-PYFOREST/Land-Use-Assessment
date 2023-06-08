@@ -5,6 +5,7 @@ editor: visual
 ---
 
 # Load packages
+
 ```{r}
 # Load packages 
 library(sf)
@@ -22,12 +23,14 @@ library(sp)
 # Read in Data
 
 ## Directory
+
 ```{r}
 # Directory
 datadir <- path.expand("~/../../capstone/pyforest")
 ```
 
 ## Political Boundaries
+
 ```{r}
 # Chaco departments (dpt)
 dpts <- st_read(file.path(datadir, "data/political_boundaries/departamento.shp"))
@@ -51,6 +54,7 @@ political_boundaries <- chaco_districts %>%
 ```
 
 ## INFONA
+
 ```{r}
 # Forest Loss Raster
 fl_11_13 <- terra::rast(file.path(datadir, "data/fl_infona/fl20112013.tif"))
@@ -81,6 +85,7 @@ lup_20 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_20.gpk
 ```
 
 # Extract Cell Counts
+
 ```{r}
 tic()
 auth_11_13 <- terra::extract(fl_11_13, lup_11_13, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
@@ -97,7 +102,11 @@ toc()
 # write_rds(auth_15_17, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_15_17.rds")
 # write_rds(auth_17_18, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_17_18.rds")
 # write_rds(auth_18_19, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_18_19.rds")
-# write_rds(auth_19_20, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_19_20.rds")
+write_rds(auth_19_20, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_19_20.rds")
+
+auth_19_20 <- readRDS("~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_19_20.rds")
+test <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_illegal_df_by_dist.rds")
+
 ```
 
 ## Bosques (illegal deforestation)
@@ -159,8 +168,9 @@ auth_bosques_15_17_geom <- calc_land_use_types(lup_15_17, auth_15_17, "15_17")
 auth_bosques_17_18_geom <- calc_land_use_types(lup_18, auth_17_18, "17_18")
 auth_bosques_18_19_geom <- calc_land_use_types(lup_19, auth_18_19, "18_19")
 auth_bosques_19_20_geom <- calc_land_use_types(lup_20, auth_19_20, "19_20")
-```
 
+auth_bosques_19_20_geom <- st_read("~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_geom.gpkg"))
+```
 
 ```{r}
 join_datasets <- function(pb, bosques_geom, year_range) {
@@ -228,8 +238,9 @@ combined_illegal_df_by_dist <- bind_rows(illegal_df_by_dist_11_13,
                                          illegal_df_by_dist_17_18, 
                                          illegal_df_by_dist_18_19, 
                                          illegal_df_by_dist_19_20)
-```
 
+# write_rds(combined_illegal_df_by_dist, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_illegal_df_by_dist.rds")
+```
 
 ```{r}
 summarize_df <- function(df, year_range) {
@@ -241,9 +252,6 @@ summarize_df <- function(df, year_range) {
               num_put_id = n_distinct(put_id),
               num_illegal_props = sum(df_status == "illegal df"),
               percent_illegal_props = (num_illegal_props / n()) * 100) 
-  # 
-  # # Write to RDS file
-  # write_rds(illegal_df_by_dist, paste0("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dist_", year_range, ".rds"))
   
   return(illegal_df_by_dpto)
 }
@@ -272,8 +280,8 @@ combined_illegal_df_by_dpto <- bind_rows(illegal_df_by_dpto_11_13,
                                          illegal_df_by_dpto_17_18, 
                                          illegal_df_by_dpto_18_19, 
                                          illegal_df_by_dpto_19_20)
+# write_rds(combined_illegal_df_by_dpto, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_illegal_df_by_dpto.rds")
 ```
-
 
 ## Authorized Area (authorized deforestation)
 
@@ -335,7 +343,6 @@ auth_df_17_18_geom <- calc_land_use_types_auth(lup_18, auth_17_18, "17_18")
 auth_df_18_19_geom <- calc_land_use_types_auth(lup_19, auth_18_19, "18_19")
 auth_df_19_20_geom <- calc_land_use_types_auth(lup_20, auth_19_20, "19_20")
 ```
-
 
 ```{r}
 join_datasets_auth <- function(pb, auth_df_geom, year_range) {
@@ -402,8 +409,8 @@ combined_auth_df_by_dist <- bind_rows(auth_df_by_dist_11_13,
                                       auth_df_by_dist_17_18, 
                                       auth_df_by_dist_18_19, 
                                       auth_df_by_dist_19_20)
+# write_rds(combined_auth_df_by_dist, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_auth_df_by_dist.rds")
 ```
-
 
 ```{r}
 summarize_auth_df <- function(df, year_range) {
@@ -443,9 +450,5 @@ combined_auth_df_by_dpto <- bind_rows(auth_df_by_dpto_11_13,
                                          auth_df_by_dpto_17_18, 
                                          auth_df_by_dpto_18_19, 
                                          auth_df_by_dpto_19_20)
+# write_rds(combined_auth_df_by_dpto, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/combined_auth_df_by_dpto.rds")
 ```
-
-
-
-
-

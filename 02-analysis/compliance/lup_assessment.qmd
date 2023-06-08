@@ -26,12 +26,14 @@ library(ggiraphExtra)
 # Read in Data
 
 ## Directory
+
 ```{r}
 # Directory
 datadir <- path.expand("~/../../capstone/pyforest")
 ```
 
 ## Political Boundaries
+
 ```{r}
 # Chaco departments (dpt)
 dpts <- st_read(file.path(datadir, "data/political_boundaries/departamento.shp"))
@@ -55,6 +57,7 @@ political_boundaries <- chaco_districts %>%
 ```
 
 ## INFONA
+
 ```{r}
 # Forest Loss Raster
 fl_11_13 <- terra::rast(file.path(datadir, "data/fl_infona/fl20112013.tif"))
@@ -72,6 +75,8 @@ active_limit_18 <- st_read(file.path(datadir, "lup_assessment_data/active_inacti
 active_limit_19 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_19.gpkg"))
 active_limit_20 <- st_read(file.path(datadir, "lup_assessment_data/active_inactive_subsets/active_inactive_20.gpkg"))
 
+
+
 # Read in land use plan (lup) data w/ land use type (grupos) and reserve/hedgerows/paddocks (categorias) polygons 
 #lup <- st_read(file.path(datadir, "data/permited_land_use/lup_gpkg/lup.gpkg"), layer = "lup_cadaster")
 
@@ -85,6 +90,7 @@ lup_20 <- st_read(file.path(datadir, "lup_assessment_data/lup_subsets/lup_20.gpk
 ```
 
 # Extract Cell Counts
+
 ```{r}
 tic()
 auth_11_13 <- terra::extract(fl_11_13, lup_11_13, fun=sum, na.rm=TRUE, ID=TRUE, bind = TRUE)
@@ -96,11 +102,20 @@ auth_19_20 <- terra::extract(fl_19_20, lup_20, fun=sum, na.rm=TRUE, ID=TRUE, bin
 toc()
 
 #~51 min
+
+st_write(auth_19_20, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_18_19.gpkg")
+# write_rds(auth_11_13, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_11_13.rds")
+# write_rds(auth_13_15, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_13_15.rds")
+# write_rds(auth_15_17, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_15_17.rds")
+# write_rds(auth_17_18, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_17_18.rds")
+# write_rds(auth_18_19, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_18_19.rds")
+
 ```
 
-# Calculate area of land use types (grupos) 
+# Calculate area of land use types (grupos)
 
 ## 18-19
+
 ```{r}
 # Use st_area to calculate the area of each polygon feature and create a new column called "approved_lup_area" 
 lup_19$approved_lup_area <- st_area(lup_19)
@@ -129,9 +144,12 @@ auth_group_19 <- as.data.frame(auth_18_19) |>
    bind_cols(temp)
 ```
 
-
 ## 19-20
+
 ```{r}
+
+#auth_19_20 <- readRDS("~/../../capstone/pyforest/lup_assessment_data/compliance_results/cell_counts/auth_19_20.rds")
+
 # Use st_area to calculate the area of each polygon feature and create a new column called "approved_lup_area" 
 lup_20$approved_lup_area <- st_area(lup_20)
 
@@ -160,7 +178,9 @@ auth_group_20 <- as.data.frame(auth_19_20) |>
 ```
 
 # Land use assessment statistics
-## Bosques 19-20
+
+## Bosques 18-19
+
 ```{r}
 # Filter auth_group_20 to only include "bosques" 
 auth_bosques_18_19 <- auth_group_19 %>%
@@ -183,12 +203,12 @@ auth_bosques_18_19_geom <- auth_bosques_18_19 %>%
 ```
 
 ## Bosques 19-20
+
 ```{r}
 # auth_bosques_19_20 <- auth_group_20 %>%
 #   filter(grepl("bosques", grupo, ignore.case = TRUE)) %>%
 #   mutate(actual_lut_area_ha = land_use_type_area_ha - df_area_ha,
 #          illegal_df = if_else(df_area_ha > 2 & (land_use_type_area - actual_lut_area) > 0, 0, 1))
-
 
 # Filter auth_group_20 to only include "bosques" 
 auth_bosques_19_20 <- auth_group_20 %>%
@@ -210,8 +230,8 @@ auth_bosques_19_20_geom <- auth_bosques_19_20 %>%
   select(-grupo.y)
 
 
-st_write(auth_bosques_19_20_geom, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_geom_051923.gpkg")
-auth_bosques_19_20_geom <- st_read("~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_geom_051923.gpkg")
+st_write(auth_bosques_19_20_geom, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_geom.gpkg")
+#auth_bosques_19_20_geom <- st_read("~/../../capstone/pyforest/lup_assessment_data/compliance_results/auth_bosques_19_20_geom_051923.gpkg")
 
 no_illegal_df_count <- auth_bosques_19_20_geom %>% filter(df_status == "no illegal df") %>% nrow()
 
@@ -227,9 +247,24 @@ df_summary <- auth_bosques_19_20 %>%
   mutate(percentage = count/sum(count) * 100)
 
 df_summary
+
+# Subset the data based on df_status
+illegal_df <- auth_bosques_19_20_geom[auth_bosques_19_20_geom$df_status == "illegal df", ]
+not_illegal_df <- auth_bosques_19_20_geom[auth_bosques_19_20_geom$df_status != "illegal df", ]
+
+# Calculate the sum of df_area_ha for each subset
+illegal_df_sum <- sum(illegal_df$df_area_ha)
+not_illegal_df_sum <- sum(not_illegal_df$df_area_ha)
+
+# Print the results
+illegal_df_sum
+not_illegal_df_sum
+
+
 ```
 
 ### Join political boundaries and grupos
+
 ```{r}
 # Join the datasets
 pb_bosques_illegal_df <- st_join(political_boundaries, auth_bosques_19_20_geom, join = st_intersects) #duplicates are created in this process 
@@ -273,22 +308,6 @@ illegal_df_by_dpto <- pb_bosques_illegal_df %>%
             percent_illegal_props = (num_illegal_props / n()) * 100) 
 
 #write_rds(illegal_df_by_dpto, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df_by_dpto.rds")
-
-# # Combined
-# illegal_df <- pb_bosques_illegal_df %>%
-#   group_by(nom_dpto, nom_dist) %>%
-#   summarize(sum_df_ha_dist = sum(df_area_ha),
-#             total_area_ha_dist = mean(area_ha),
-#             num_put_id_dist = n_distinct(put_id)) %>%
-#   group_by(nom_dpto) %>%
-#   mutate(sum_df_ha_dpto = sum(sum_df_ha_dist, na.rm = T),
-#          total_area_ha_dpto = mean(total_area_ha_dist, na.rm = T),
-#          num_put_id_dpto = sum(num_put_id_dist))
-# 
-# 
-# write_rds(illegal_df, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df.rds")
-# illegal_df <- read_rds("~/../../capstone/pyforest/lup_assessment_data/compliance_results/illegal_df.rds")
-
 ```
 
 #Authorized Area
@@ -303,7 +322,7 @@ lup_20_auth_df <- lup_20_grouped %>%
   filter(grepl("AREA_AUTORIZADA", grupo, ignore.case = TRUE))
 
 # Join auth_df_19_20 with lup_20_auth_df based on put_id and add geometry
-auth_df_19_20_geom <- auth_area_19_20 %>%
+auth_df_19_20_geom <- auth_df_19_20 %>%
   left_join(lup_20_auth_df %>% select(put_id, grupo, geom), by = "put_id") %>%
   st_set_geometry("geom") %>%
   rename(grupo = grupo.x) %>%
@@ -313,6 +332,7 @@ auth_df_19_20_geom <- auth_area_19_20 %>%
 ```
 
 ### Join political boundaries and grupos (authorized) df
+
 ```{r}
 # Join the datasets
 authorized_df <- st_join(political_boundaries, auth_df_19_20_geom, join = st_intersects) #duplicates are created in this process
@@ -336,5 +356,34 @@ authorized_df_by_dist <- authorized_df %>%
             sum_lut_area_ha = sum(land_use_type_area_ha),
             num_put_id = n_distinct(put_id))
 
+authorized_df2 <- sum(authorized_df_by_dist$sum_df_ha)
+
+
+# Subset the data where df_area_ha is non-zero
+subset_df <- authorized_df[authorized_df$df_area_ha != 0, ]
+
+# Count the number of unique put_ids
+num_put_ids <- length(unique(subset_df$put_id))
+
+# Print the result
+num_put_ids
+
+
+
 #write_rds(authorized_df_by_dist, "~/../../capstone/pyforest/lup_assessment_data/compliance_results/authorized_df_by_dist.rds")
+```
+
+# 
+
+```{r}
+overall_percentage <- mean(combined_illegal_df_by_dist$percent_illegal_props, na.rm = TRUE)
+
+library(ggplot2)
+ggplot(combined_illegal_df_by_dist, aes(x = percent_illegal_props)) +
+  geom_histogram(binwidth = 5) +
+  labs(title = "Distribution of Percentage of Illegal Properties",
+       x = "Percentage of Illegal Properties",
+       y = "Count")
+
+
 ```
