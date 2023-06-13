@@ -35,7 +35,7 @@ Informing Forest Conservation Regulations in Paraguay
 - [Results](#results)
 - [Data Information](#data-information)
 - [License](#license)
-- [Contact](#contact)
+- [Contributors](#contributors)
   
 ## Description
 To understand and mitigate the impacts of deforestation, it is crucial to evaluate property owners' compliance with their approved LUPs and accurately quantify deforestation rates and forest cover. This region, rich in biodiversity, has been experiencing significant deforestation, making it a crucial study area.
@@ -97,4 +97,14 @@ Table 2:  Data Information - Objective 1
 | Forest Cover |	2000-2020 |	INFONA |	Rasters |	CRS: WGS 84 / UTM zone 21S | Resolution: 30m x 30m |	Metadata |
 | Forest Loss | 2000-2020 |	INFONA |	Rasters |	CRS: WGS 84 / UTM zone 21S | Resolution: 30m x 30m |	Metadata |
 | Permitted land use | 	1994-2022 |	INFONA |	Polygons |	CRS: WGS 84 / UTM zone 21S |	Metadata |
+ 
+## License
+
+This project is licensed under the Apache-2.0 License - see the LICENSE.md file for details
+ 
+## Contributors
+[Atahualpa Ayala](Atahualpa-Ayala),  [Dalila Lara](https://github.com/dalilalara),  [Alexandria Reed](https://github.com/reedalexandria),  [Guillermo Romero](https://github.com/romero61)
+Any advise for common problems or issues.
+
+
 
