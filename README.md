@@ -48,7 +48,7 @@ By leveraging geospatial overlays, we compare forest loss data against permitted
 
 ### Land Use Plan Assessment
 
--The assessment process involves determining the active private properties for each year of analysis, using the Property Boundary dataset. The active-inactive.qmd and active-lup.qmd files preprocess the data to identify the unique identifiers of active properties and active LUPs for each year from 2011 to 2020. These identifiers are then used to subset the Land Use Plan dataset.
+The assessment process involves determining the active private properties for each year of analysis, using the Property Boundary dataset. The active-inactive.qmd and active-lup.qmd files preprocess the data to identify the unique identifiers of active properties and active LUPs for each year from 2011 to 2020. These identifiers are then used to subset the Land Use Plan dataset.
 - Each row of a LUP subset is a vector polygon of the approved land use type. The analysis done in lup_{year}-compliance.qmd uses the yearly subsets of LUPs and overlays them with the corresponding ‘Forest Loss’ dataset to determine the cell count per land use type. Each cell of the ‘Forest Loss’ dataset is a deforested area. 
 - Yearly subsets of the Land use dataset contain a categorical column of 'GRUPOS,' identifying the approved land use type. The analysis done in each lup_{year}-compliance.qmd uses the 'GRUPOS' column to filter by the land use types of 'authorized area' and 'forest reserve' ('AREA_AUTORIZADA,' 'BOSQUES').
 - Pixel counts were converted to an area for each property and land use type. Pixel counts greater than zero in the area designated as a forest reserve is considered illegal deforestation, placing the property out of compliance with its approved land use plan.
