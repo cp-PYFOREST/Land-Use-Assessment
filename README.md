@@ -55,7 +55,7 @@ By leveraging geospatial overlays, we compare forest loss data against permitted
   
 <h2 align="center">
 
-<img src="https://github.com/cp-PYFOREST/.github/blob/main/img/obj1lup.png" alt="Land Use Plan" width="200">
+<img src="https://github.com/cp-PYFOREST/.github/blob/main/img/obj1lup.png" alt="Land Use Plan">
 
 </h2>
 
@@ -70,7 +70,7 @@ By leveraging geospatial overlays, we compare forest loss data against permitted
   
  <h2 align="center">
 
-<img src="https://github.com/cp-PYFOREST/.github/blob/main/img/obj1stats.png" alt="LUP Results" width="200">
+<img src="https://github.com/cp-PYFOREST/.github/blob/main/img/obj1stats.png" alt="LUP Results">
 
 </h2>
   
@@ -79,7 +79,7 @@ By leveraging geospatial overlays, we compare forest loss data against permitted
   
  <h2 align="center">
 
-<img src="https://github.com/cp-PYFOREST/.github/blob/main/img/obj1spatial.png" alt="Spatial Distribution" width="200">
+<img src="https://github.com/cp-PYFOREST/.github/blob/main/img/obj1spatial.png" alt="Spatial Distribution">
 
 </h2>
   
